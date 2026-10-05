@@ -43,6 +43,18 @@ data class GoogleImageLinks(
     @SerializedName("thumbnail") val thumbnail: String?
 )
 
+data class GoogleBookshelfResponse(
+    @SerializedName("kind") val kind: String?,
+    @SerializedName("items") val items: List<GoogleBookshelfItem>?
+)
+
+data class GoogleBookshelfItem(
+    @SerializedName("id") val id: Int,
+    @SerializedName("title") val title: String?,
+    @SerializedName("volumeCount") val volumeCount: Int?,
+    @SerializedName("access") val access: String?
+)
+
 object GoogleBooksApi {
 
     private const val BASE_URL = "https://www.googleapis.com/books/v1/volumes"
@@ -56,6 +68,56 @@ object GoogleBooksApi {
             val url = URL(urlString)
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
+            connection.connectTimeout = 8000
+            connection.readTimeout = 8000
+
+            if (connection.responseCode == 200) {
+                val reader = BufferedReader(InputStreamReader(connection.inputStream, "UTF-8"))
+                val responseText = reader.readText()
+                reader.close()
+                val response = gson.fromJson(responseText, GoogleBooksSearchResponse::class.java)
+                response.items ?: emptyList()
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
+    suspend fun getUserBookshelves(accessToken: String): List<GoogleBookshelfItem> = withContext(Dispatchers.IO) {
+        val urlString = "https://www.googleapis.com/books/v1/users/me/bookshelves"
+        return@withContext try {
+            val url = URL(urlString)
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.setRequestProperty("Authorization", "Bearer $accessToken")
+            connection.connectTimeout = 8000
+            connection.readTimeout = 8000
+
+            if (connection.responseCode == 200) {
+                val reader = BufferedReader(InputStreamReader(connection.inputStream, "UTF-8"))
+                val responseText = reader.readText()
+                reader.close()
+                val response = gson.fromJson(responseText, GoogleBookshelfResponse::class.java)
+                response.items ?: emptyList()
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
+    suspend fun getUserBookshelfVolumes(accessToken: String, bookshelfId: Int): List<GoogleBookVolumeItem> = withContext(Dispatchers.IO) {
+        val urlString = "https://www.googleapis.com/books/v1/users/me/bookshelves/$bookshelfId/volumes?maxResults=40"
+        return@withContext try {
+            val url = URL(urlString)
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.setRequestProperty("Authorization", "Bearer $accessToken")
             connection.connectTimeout = 8000
             connection.readTimeout = 8000
 

@@ -520,9 +520,20 @@ fun GoogleBooksSyncSheet(
     onDismiss: () -> Unit,
     onBookSynced: (String) -> Unit
 ) {
-    var query by remember { mutableStateOf("") }
-    val googleResults by viewModel.googleSearchResults.collectAsState()
-    val isSearching by viewModel.isSearchingGoogle.collectAsState()
+    val googleToken by viewModel.googleToken.collectAsState()
+    val userEmail by viewModel.userEmail.collectAsState()
+    val myVolumes by viewModel.myBookshelfVolumes.collectAsState()
+    val myShelves by viewModel.myBookshelves.collectAsState()
+    val isLoadingMyBooks by viewModel.isLoadingMyBooks.collectAsState()
+
+    var selectedTab by remember { mutableStateOf(0) }
+    var tokenInput by remember { mutableStateOf("") }
+    var emailInput by remember { mutableStateOf("") }
+    var showConnectDialog by remember { mutableStateOf(false) }
+
+    var searchStoreQuery by remember { mutableStateOf("") }
+    val storeResults by viewModel.googleSearchResults.collectAsState()
+    val isSearchingStore by viewModel.isSearchingGoogle.collectAsState()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -542,123 +553,288 @@ fun GoogleBooksSyncSheet(
                     modifier = Modifier.size(28.dp)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Sync Google Play Books",
+                        text = "Google Play Books Sync",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF202124)
                     )
                     Text(
-                        text = "Search & import books from Google Play Books library",
+                        text = if (googleToken != null) "Connected: ${userEmail ?: "Google Account"}" else "Sync your personal Google Play Books library",
                         fontSize = 13.sp,
-                        color = Color.Gray
+                        color = if (googleToken != null) Color(0xFF1A73E8) else Color.Gray,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ModeChip(
+                    title = "My Google Books",
+                    isSelected = selectedTab == 0,
+                    themeColors = com.playbook.reader.domain.model.ReaderThemeColors.LIGHT,
+                    onClick = {
+                        selectedTab = 0
+                        if (googleToken != null && myVolumes.isEmpty()) {
+                            viewModel.loadMyBookshelves()
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                ModeChip(
+                    title = "Store Search",
+                    isSelected = selectedTab == 1,
+                    themeColors = com.playbook.reader.domain.model.ReaderThemeColors.LIGHT,
+                    onClick = { selectedTab = 1 },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (selectedTab == 0) {
+                if (googleToken == null) {
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F0FE)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CloudDownload,
+                                contentDescription = null,
+                                tint = Color(0xFF1A73E8),
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "Connect Your Google Account",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1A73E8)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Directly pull your personal Google Play Books ('My eBooks', 'Purchases', 'Currently Reading') into the continuous vertical scroll reader.",
+                                fontSize = 13.sp,
+                                color = Color.DarkGray,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(
+                                onClick = { showConnectDialog = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8)),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Text("Connect Google Account Token", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "My Personal Library (${myVolumes.size} books)",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF3C4043)
+                        )
+                        Row {
+                            IconButton(onClick = { viewModel.loadMyBookshelves() }) {
+                                Icon(Icons.Default.Sync, contentDescription = "Refresh", tint = Color(0xFF1A73E8))
+                            }
+                            Button(
+                                onClick = { viewModel.logoutGoogle() },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.LightGray),
+                                shape = RoundedCornerShape(16.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text("Disconnect", fontSize = 11.sp, color = Color.Black)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    if (isLoadingMyBooks) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(220.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = Color(0xFF1A73E8))
+                        }
+                    } else if (myVolumes.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "No books found in your Google Play Books library.\nTap Refresh or check account connection.",
+                                fontSize = 13.sp,
+                                color = Color.Gray,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(320.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(myVolumes, key = { it.id }) { item ->
+                                val info = item.volumeInfo
+                                Card(
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        BookCoverThumbnail(
+                                            title = info?.title ?: "My Book",
+                                            modifier = Modifier.size(45.dp, 65.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = info?.title ?: "Untitled",
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = info?.authors?.joinToString(", ") ?: "Unknown Author",
+                                                fontSize = 12.sp,
+                                                color = Color.Gray,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = "Google Play Books Library",
+                                                fontSize = 11.sp,
+                                                color = Color(0xFF1A73E8)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Button(
+                                            onClick = {
+                                                val syncedBook = viewModel.syncGoogleBook(item)
+                                                onBookSynced(syncedBook.id)
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8)),
+                                            shape = RoundedCornerShape(20.dp),
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                        ) {
+                                            Text("Sync", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
                 OutlinedTextField(
-                    value = query,
+                    value = searchStoreQuery,
                     onValueChange = {
-                        query = it
+                        searchStoreQuery = it
                         viewModel.searchGoogleBooks(it)
                     },
-                    placeholder = { Text("Search Google Play Books...") },
+                    placeholder = { Text("Search Google Play Store...") },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(24.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Color(0xFF1A73E8),
                         unfocusedBorderColor = Color.LightGray
                     )
                 )
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-            if (isSearching) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = Color(0xFF1A73E8))
-                }
-            } else if (googleResults.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(180.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = if (query.isBlank()) "Type a book title or author to search Google Play Books" else "No Google Books found for '$query'",
-                        fontSize = 14.sp,
-                        color = Color.Gray,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(350.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(googleResults, key = { it.id }) { item ->
-                        val info = item.volumeInfo
-                        Card(
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                if (isSearchingStore) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = Color(0xFF1A73E8))
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(300.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(storeResults, key = { it.id }) { item ->
+                            val info = item.volumeInfo
+                            Card(
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA)),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                BookCoverThumbnail(
-                                    title = info?.title ?: "Book",
-                                    modifier = Modifier.size(45.dp, 65.dp)
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = info?.title ?: "Untitled",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = info?.authors?.joinToString(", ") ?: "Unknown Author",
-                                        fontSize = 12.sp,
-                                        color = Color.Gray,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = "${info?.pageCount ?: "?"} pages • ${info?.publishedDate ?: ""}",
-                                        fontSize = 11.sp,
-                                        color = Color(0xFF1A73E8)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Button(
-                                    onClick = {
-                                        val syncedBook = viewModel.syncGoogleBook(item)
-                                        onBookSynced(syncedBook.id)
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8)),
-                                    shape = RoundedCornerShape(20.dp),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("Sync", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    BookCoverThumbnail(
+                                        title = info?.title ?: "Book",
+                                        modifier = Modifier.size(45.dp, 65.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = info?.title ?: "Untitled",
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = info?.authors?.joinToString(", ") ?: "Unknown Author",
+                                            fontSize = 12.sp,
+                                            color = Color.Gray,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Button(
+                                        onClick = {
+                                            val syncedBook = viewModel.syncGoogleBook(item)
+                                            onBookSynced(syncedBook.id)
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8)),
+                                        shape = RoundedCornerShape(20.dp)
+                                    ) {
+                                        Text("Sync", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
                                 }
                             }
                         }
@@ -666,5 +842,58 @@ fun GoogleBooksSyncSheet(
                 }
             }
         }
+    }
+
+    if (showConnectDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showConnectDialog = false },
+            title = { Text("Connect Google Play Account") },
+            text = {
+                Column {
+                    Text(
+                        text = "Enter your Google Account email and OAuth Bearer Access Token (or API token with books scope).",
+                        fontSize = 13.sp,
+                        color = Color.Gray
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = emailInput,
+                        onValueChange = { emailInput = it },
+                        label = { Text("Google Account Email") },
+                        placeholder = { Text("user@gmail.com") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = tokenInput,
+                        onValueChange = { tokenInput = it },
+                        label = { Text("Google Books OAuth Token / Key") },
+                        placeholder = { Text("ya29.a0A...") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (tokenInput.isNotBlank()) {
+                            viewModel.saveGoogleToken(tokenInput, emailInput.ifBlank { "Google Account" })
+                            showConnectDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8))
+                ) {
+                    Text("Connect & Sync")
+                }
+            },
+            dismissButton = {
+                Button(
+                    onClick = { showConnectDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.LightGray)
+                ) {
+                    Text("Cancel", color = Color.Black)
+                }
+            }
+        )
     }
 }

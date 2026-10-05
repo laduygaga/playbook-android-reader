@@ -7,6 +7,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.playbook.reader.data.api.GoogleBookVolumeItem
 import com.playbook.reader.data.api.GoogleBooksApi
+import com.playbook.reader.data.auth.GoogleAccountSyncManager
 import com.playbook.reader.data.parser.EpubParser
 import com.playbook.reader.data.parser.TextParser
 import com.playbook.reader.data.sample.SampleBooksProvider
@@ -20,6 +21,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
 
 class BookRepository(private val context: Context) {
+
+    val googleAccountSyncManager = GoogleAccountSyncManager(context)
 
     private val prefs: SharedPreferences = context.getSharedPreferences("playbook_prefs", Context.MODE_PRIVATE)
     private val gson = Gson()
