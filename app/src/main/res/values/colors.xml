@@ -8,4 +8,5 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     <color name="apple_red">#FA2D48</color>
+    <color name="playbook_blue">#FA2D48</color>
 </resources>
