@@ -101,8 +101,28 @@ fun ReaderScreen(
         initialFirstVisibleItemIndex = book?.currentChapterIndex ?: 0,
         initialFirstVisibleItemScrollOffset = book?.currentScrollOffset ?: 0
     )
+    val pagerState = rememberPagerState(
+        initialPage = book?.currentChapterIndex ?: 0,
+        pageCount = { chapters.size }
+    )
 
-    LaunchedEffect(lazyListState) {
+    val currentIdx = if (settings.readingMode == ReadingMode.VERTICAL_SCROLL) {
+        lazyListState.firstVisibleItemIndex
+    } else {
+        pagerState.currentPage
+    }
+
+    val jumpToChapter: (Int) -> Unit = { targetIdx ->
+        coroutineScope.launch {
+            if (settings.readingMode == ReadingMode.VERTICAL_SCROLL) {
+                lazyListState.scrollToItem(targetIdx)
+            } else {
+                pagerState.scrollToPage(targetIdx)
+            }
+        }
+    }
+
+    LaunchedEffect(lazyListState, settings.readingMode) {
         snapshotFlow {
             Triple(
                 lazyListState.firstVisibleItemIndex,
@@ -110,10 +130,32 @@ fun ReaderScreen(
                 chapters.size
             )
         }.collect { (itemIndex, scrollOffset, totalChapters) ->
-            if (totalChapters > 0) {
+            if (totalChapters > 0 && settings.readingMode == ReadingMode.VERTICAL_SCROLL) {
                 val progress = (itemIndex + 1).toFloat() / totalChapters.toFloat()
                 viewModel.saveProgress(itemIndex, scrollOffset, progress)
             }
+        }
+    }
+
+    LaunchedEffect(pagerState, settings.readingMode) {
+        snapshotFlow {
+            Pair(
+                pagerState.currentPage,
+                chapters.size
+            )
+        }.collect { (page, totalChapters) ->
+            if (totalChapters > 0 && settings.readingMode == ReadingMode.HORIZONTAL_PAGED) {
+                val progress = (page + 1).toFloat() / totalChapters.toFloat()
+                viewModel.saveProgress(page, 0, progress)
+            }
+        }
+    }
+
+    LaunchedEffect(settings.readingMode) {
+        if (settings.readingMode == ReadingMode.VERTICAL_SCROLL) {
+            lazyListState.scrollToItem(pagerState.currentPage)
+        } else {
+            pagerState.scrollToPage(lazyListState.firstVisibleItemIndex)
         }
     }
 
@@ -173,10 +215,6 @@ fun ReaderScreen(
                 }
             }
         } else {
-            val pagerState = rememberPagerState(
-                initialPage = book?.currentChapterIndex ?: 0,
-                pageCount = { chapters.size }
-            )
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize()
@@ -283,7 +321,6 @@ fun ReaderScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 12.dp)
                 ) {
-                    val currentIdx = lazyListState.firstVisibleItemIndex
                     val currentChapterTitle = chapters.getOrNull(currentIdx)?.title ?: ""
                     val progressPct = if (chapters.isNotEmpty()) {
                         ((currentIdx + 1).toFloat() / chapters.size.toFloat() * 100).toInt()
@@ -316,9 +353,7 @@ fun ReaderScreen(
                     Slider(
                         value = currentIdx.toFloat(),
                         onValueChange = { targetIdx ->
-                            coroutineScope.launch {
-                                lazyListState.scrollToItem(targetIdx.toInt())
-                            }
+                            jumpToChapter(targetIdx.toInt())
                         },
                         valueRange = 0f..(chapters.size - 1).coerceAtLeast(1).toFloat(),
                         steps = (chapters.size - 2).coerceAtLeast(0),
@@ -500,7 +535,7 @@ fun ReaderScreen(
 
                 LazyColumn(modifier = Modifier.fillMaxWidth()) {
                     itemsIndexed(chapters) { index, chapter ->
-                        val isCurrent = lazyListState.firstVisibleItemIndex == index
+                        val isCurrent = currentIdx == index
                         Card(
                             colors = CardDefaults.cardColors(
                                 containerColor = if (isCurrent) themeColors.accent.copy(alpha = 0.12f) else Color.Transparent
@@ -509,9 +544,7 @@ fun ReaderScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    coroutineScope.launch {
-                                        lazyListState.scrollToItem(index)
-                                    }
+                                    jumpToChapter(index)
                                     showTocSheet = false
                                 }
                                 .padding(vertical = 4.dp)
