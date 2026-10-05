@@ -73,6 +73,8 @@ import com.playbook.reader.domain.model.FontStyleOption
 import com.playbook.reader.domain.model.ReaderSettings
 import com.playbook.reader.domain.model.ReaderThemeColors
 import com.playbook.reader.domain.model.ReadingMode
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -122,6 +124,7 @@ fun ReaderScreen(
         }
     }
 
+    @OptIn(FlowPreview::class)
     LaunchedEffect(lazyListState, settings.readingMode) {
         snapshotFlow {
             Triple(
@@ -129,7 +132,9 @@ fun ReaderScreen(
                 lazyListState.firstVisibleItemScrollOffset,
                 chapters.size
             )
-        }.collect { (itemIndex, scrollOffset, totalChapters) ->
+        }
+        .debounce(500L)
+        .collect { (itemIndex, scrollOffset, totalChapters) ->
             if (totalChapters > 0 && settings.readingMode == ReadingMode.VERTICAL_SCROLL) {
                 val progress = (itemIndex + 1).toFloat() / totalChapters.toFloat()
                 viewModel.saveProgress(itemIndex, scrollOffset, progress)
@@ -137,13 +142,16 @@ fun ReaderScreen(
         }
     }
 
+    @OptIn(FlowPreview::class)
     LaunchedEffect(pagerState, settings.readingMode) {
         snapshotFlow {
             Pair(
                 pagerState.currentPage,
                 chapters.size
             )
-        }.collect { (page, totalChapters) ->
+        }
+        .debounce(500L)
+        .collect { (page, totalChapters) ->
             if (totalChapters > 0 && settings.readingMode == ReadingMode.HORIZONTAL_PAGED) {
                 val progress = (page + 1).toFloat() / totalChapters.toFloat()
                 viewModel.saveProgress(page, 0, progress)
@@ -591,6 +599,10 @@ fun AppleChapterView(
         FontStyleOption.MONOSPACE -> FontFamily.Monospace
     }
 
+    val paragraphs = remember(chapter.content) {
+        chapter.content.split("\n\n").map { it.trim() }.filter { it.isNotEmpty() }
+    }
+
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = chapter.title,
@@ -601,13 +613,26 @@ fun AppleChapterView(
             modifier = Modifier.padding(bottom = 20.dp)
         )
 
-        Text(
-            text = chapter.content,
-            fontSize = settings.fontSizeSp.sp,
-            lineHeight = (settings.fontSizeSp * settings.lineSpacingMultiplier).sp,
-            fontFamily = fontFamily,
-            color = themeColors.text
-        )
+        if (paragraphs.isEmpty()) {
+            Text(
+                text = chapter.content,
+                fontSize = settings.fontSizeSp.sp,
+                lineHeight = (settings.fontSizeSp * settings.lineSpacingMultiplier).sp,
+                fontFamily = fontFamily,
+                color = themeColors.text
+            )
+        } else {
+            paragraphs.forEach { paragraph ->
+                Text(
+                    text = paragraph,
+                    fontSize = settings.fontSizeSp.sp,
+                    lineHeight = (settings.fontSizeSp * settings.lineSpacingMultiplier).sp,
+                    fontFamily = fontFamily,
+                    color = themeColors.text,
+                    modifier = Modifier.padding(bottom = 14.dp)
+                )
+            }
+        }
     }
 }
 
