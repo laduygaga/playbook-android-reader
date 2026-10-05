@@ -73,6 +73,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.playbook.reader.data.api.GoogleBookVolumeItem
 import com.playbook.reader.domain.model.Book
+import com.playbook.reader.ui.reader.ModeChip
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
