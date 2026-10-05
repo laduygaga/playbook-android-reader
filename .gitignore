@@ -9,3 +9,5 @@
 .externalNativeBuild
 .cxx
 /bin
+playbook-reader-app-debug.apk/
+*.apk

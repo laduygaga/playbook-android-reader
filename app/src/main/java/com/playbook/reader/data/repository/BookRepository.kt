@@ -5,6 +5,8 @@ import android.content.SharedPreferences
 import android.net.Uri
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.playbook.reader.data.api.GoogleBookVolumeItem
+import com.playbook.reader.data.api.GoogleBooksApi
 import com.playbook.reader.data.parser.EpubParser
 import com.playbook.reader.data.parser.TextParser
 import com.playbook.reader.data.sample.SampleBooksProvider
@@ -50,6 +52,21 @@ class BookRepository(private val context: Context) {
     private fun saveBooksToPrefs(userBooks: List<Book>) {
         val json = gson.toJson(userBooks)
         prefs.edit().putString("user_books", json).apply()
+    }
+
+    fun addGoogleBookToLibrary(volumeItem: GoogleBookVolumeItem): Book {
+        val (book, chapters) = GoogleBooksApi.convertVolumeToBookAndChapters(volumeItem)
+        saveChaptersLocally(book.id, chapters)
+
+        val currentList = _books.value.toMutableList()
+        currentList.removeAll { it.id == book.id }
+        currentList.add(0, book)
+        _books.value = currentList
+
+        val userOnly = currentList.filterNot { it.id.startsWith("sample_") }
+        saveBooksToPrefs(userOnly)
+
+        return book
     }
 
     fun importBook(uri: Uri, fileName: String): Book? {

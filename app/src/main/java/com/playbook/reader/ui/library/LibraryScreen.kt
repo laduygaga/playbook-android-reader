@@ -28,18 +28,24 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -47,6 +53,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -64,6 +71,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.playbook.reader.data.api.GoogleBookVolumeItem
 import com.playbook.reader.domain.model.Book
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -78,6 +86,7 @@ fun LibraryScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
 
     var showSearchField by remember { mutableStateOf(false) }
+    var showGoogleSyncSheet by remember { mutableStateOf(false) }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -122,6 +131,13 @@ fun LibraryScreen(
                             }
                         },
                         actions = {
+                            IconButton(onClick = { showGoogleSyncSheet = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.CloudDownload,
+                                    contentDescription = "Sync Google Play Books",
+                                    tint = Color(0xFF1A73E8)
+                                )
+                            }
                             IconButton(onClick = { showSearchField = !showSearchField }) {
                                 Icon(Icons.Default.Search, contentDescription = "Search Books")
                             }
@@ -245,6 +261,17 @@ fun LibraryScreen(
                 }
             }
         }
+    }
+
+    if (showGoogleSyncSheet) {
+        GoogleBooksSyncSheet(
+            viewModel = viewModel,
+            onDismiss = { showGoogleSyncSheet = false },
+            onBookSynced = { bookId ->
+                showGoogleSyncSheet = false
+                onBookClick(bookId)
+            }
+        )
     }
 }
 
@@ -484,4 +511,160 @@ private fun getFileName(context: android.content.Context, uri: Uri): String? {
         }
     }
     return result
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GoogleBooksSyncSheet(
+    viewModel: LibraryViewModel,
+    onDismiss: () -> Unit,
+    onBookSynced: (String) -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+    val googleResults by viewModel.googleSearchResults.collectAsState()
+    val isSearching by viewModel.isSearchingGoogle.collectAsState()
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = Color.White
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.CloudDownload,
+                    contentDescription = null,
+                    tint = Color(0xFF1A73E8),
+                    modifier = Modifier.size(28.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "Sync Google Play Books",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF202124)
+                    )
+                    Text(
+                        text = "Search & import books from Google Play Books library",
+                        fontSize = 13.sp,
+                        color = Color.Gray
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = {
+                        query = it
+                        viewModel.searchGoogleBooks(it)
+                    },
+                    placeholder = { Text("Search Google Play Books...") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF1A73E8),
+                        unfocusedBorderColor = Color.LightGray
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (isSearching) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = Color(0xFF1A73E8))
+                }
+            } else if (googleResults.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (query.isBlank()) "Type a book title or author to search Google Play Books" else "No Google Books found for '$query'",
+                        fontSize = 14.sp,
+                        color = Color.Gray,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(350.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(googleResults, key = { it.id }) { item ->
+                        val info = item.volumeInfo
+                        Card(
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                BookCoverThumbnail(
+                                    title = info?.title ?: "Book",
+                                    modifier = Modifier.size(45.dp, 65.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = info?.title ?: "Untitled",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = info?.authors?.joinToString(", ") ?: "Unknown Author",
+                                        fontSize = 12.sp,
+                                        color = Color.Gray,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "${info?.pageCount ?: "?"} pages • ${info?.publishedDate ?: ""}",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF1A73E8)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = {
+                                        val syncedBook = viewModel.syncGoogleBook(item)
+                                        onBookSynced(syncedBook.id)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8)),
+                                    shape = RoundedCornerShape(20.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text("Sync", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

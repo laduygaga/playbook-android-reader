@@ -5,7 +5,8 @@ import androidx.compose.ui.graphics.Color
 enum class BookFileType {
     EPUB,
     TXT,
-    PDF
+    PDF,
+    GOOGLE_PLAY_BOOK
 }
 
 data class Book(
@@ -16,11 +17,16 @@ data class Book(
     val filePath: String,
     val fileType: BookFileType = BookFileType.EPUB,
     val totalChapters: Int = 1,
-    val progress: Float = 0f, // 0.0 to 1.0
+    val progress: Float = 0f,
     val lastReadTimestamp: Long = System.currentTimeMillis(),
     val currentChapterIndex: Int = 0,
     val currentScrollOffset: Int = 0,
-    val addedTimestamp: Long = System.currentTimeMillis()
+    val addedTimestamp: Long = System.currentTimeMillis(),
+    val googleVolumeId: String? = null,
+    val description: String? = null,
+    val categories: String? = null,
+    val previewLink: String? = null,
+    val isSyncedFromGoogle: Boolean = false
 )
 
 data class Chapter(
