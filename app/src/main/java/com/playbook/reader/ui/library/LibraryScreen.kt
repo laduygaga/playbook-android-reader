@@ -5,7 +5,10 @@ import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,28 +27,24 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Book
-import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -53,7 +52,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -63,17 +61,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.playbook.reader.data.api.GoogleBookVolumeItem
 import com.playbook.reader.domain.model.Book
-import com.playbook.reader.ui.reader.ModeChip
+
+private val AppleRed = Color(0xFFFA2D48)
+private val AppleBg = Color(0xFFF2F2F7)
+private val AppleTextPrimary = Color(0xFF000000)
+private val AppleTextSecondary = Color(0xFF8E8E93)
+private val AppleBorder = Color(0xFFE5E5EA)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,7 +91,7 @@ fun LibraryScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
 
     var showSearchField by remember { mutableStateOf(false) }
-    var showGoogleSyncSheet by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableStateOf(0) } // 0: Reading Now, 1: Library
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -107,65 +111,114 @@ fun LibraryScreen(
     val recentBook = filteredBooks.maxByOrNull { it.lastReadTimestamp }
 
     Scaffold(
+        containerColor = AppleBg,
         topBar = {
             Surface(
-                shadowElevation = 4.dp,
-                color = MaterialTheme.colorScheme.surface
+                color = AppleBg,
+                shadowElevation = 0.dp
             ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
                     TopAppBar(
                         title = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    imageVector = Icons.Default.Book,
+                                    imageVector = Icons.Default.AutoStories,
                                     contentDescription = null,
-                                    tint = Color(0xFF1A73E8),
+                                    tint = AppleRed,
                                     modifier = Modifier.size(28.dp)
                                 )
-                                Spacer(modifier = Modifier.width(10.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Playbook",
+                                    text = if (selectedTab == 0) "Reading Now" else "Library",
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 22.sp,
-                                    color = Color(0xFF202124)
+                                    fontSize = 28.sp,
+                                    fontFamily = FontFamily.Serif,
+                                    color = AppleTextPrimary
                                 )
                             }
                         },
                         actions = {
-                            IconButton(onClick = { showGoogleSyncSheet = true }) {
-                                Icon(
-                                    imageVector = Icons.Default.CloudDownload,
-                                    contentDescription = "Sync Google Play Books",
-                                    tint = Color(0xFF1A73E8)
-                                )
-                            }
                             IconButton(onClick = { showSearchField = !showSearchField }) {
-                                Icon(Icons.Default.Search, contentDescription = "Search Books")
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = "Search Books",
+                                    tint = AppleRed
+                                )
                             }
                             IconButton(onClick = { viewModel.toggleViewMode() }) {
                                 Icon(
                                     imageVector = if (isGridView) Icons.Default.List else Icons.Default.GridView,
-                                    contentDescription = "Toggle Grid/List"
+                                    contentDescription = "Toggle Grid/List",
+                                    tint = AppleRed
                                 )
                             }
                         },
                         colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = MaterialTheme.colorScheme.surface
+                            containerColor = AppleBg
                         )
                     )
+
+                    // iOS Segmented Control Tabs
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp, bottom = 8.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFFE3E3E8))
+                            .padding(2.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (selectedTab == 0) Color.White else Color.Transparent)
+                                .clickable { selectedTab = 0 }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Reading Now",
+                                fontSize = 13.sp,
+                                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
+                                color = if (selectedTab == 0) AppleTextPrimary else AppleTextSecondary
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (selectedTab == 1) Color.White else Color.Transparent)
+                                .clickable { selectedTab = 1 }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Library",
+                                fontSize = 13.sp,
+                                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
+                                color = if (selectedTab == 1) AppleTextPrimary else AppleTextSecondary
+                            )
+                        }
+                    }
 
                     AnimatedVisibility(visible = showSearchField) {
                         OutlinedTextField(
                             value = searchQuery,
                             onValueChange = { viewModel.setSearchQuery(it) },
-                            placeholder = { Text("Search your library...") },
+                            placeholder = { Text("Search title or author...", color = AppleTextSecondary) },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            shape = RoundedCornerShape(24.dp),
+                                .padding(vertical = 8.dp),
+                            shape = RoundedCornerShape(12.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF1A73E8),
-                                unfocusedBorderColor = Color.LightGray
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color(0xFFE3E3E8),
+                                focusedBorderColor = AppleRed,
+                                unfocusedBorderColor = Color.Transparent
                             )
                         )
                     }
@@ -175,8 +228,9 @@ fun LibraryScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { filePickerLauncher.launch("*/*") },
-                containerColor = Color(0xFF1A73E8),
-                contentColor = Color.White
+                containerColor = AppleRed,
+                contentColor = Color.White,
+                shape = CircleShape
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Import Book")
             }
@@ -186,7 +240,7 @@ fun LibraryScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(Color(0xFFF8F9FA))
+                .background(AppleBg)
         ) {
             if (filteredBooks.isEmpty()) {
                 Column(
@@ -195,67 +249,108 @@ fun LibraryScreen(
                     verticalArrangement = Arrangement.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Book,
+                        imageVector = Icons.AutoMirrored.Filled.MenuBook,
                         contentDescription = null,
-                        tint = Color.Gray,
-                        modifier = Modifier.size(64.dp)
+                        tint = AppleTextSecondary,
+                        modifier = Modifier.size(72.dp)
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "Your library is empty",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.DarkGray
+                        text = "No Books in Library",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Serif,
+                        color = AppleTextPrimary
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Tap the + button to import EPUB or TXT books",
+                        text = "Tap + to import EPUB or TXT ebooks.",
                         fontSize = 14.sp,
-                        color = Color.Gray,
+                        color = AppleTextSecondary,
                         textAlign = TextAlign.Center
                     )
                 }
             } else {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    // "Continue Reading" banner if user has started a book
-                    recentBook?.let { book ->
-                        if (book.progress > 0f) {
-                            ContinueReadingCard(
-                                book = book,
-                                onClick = { onBookClick(book.id) },
-                                modifier = Modifier.padding(16.dp)
-                            )
+                LazyColumn(
+                    contentPadding = PaddingValues(bottom = 80.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    if (selectedTab == 0) {
+                        // "Reading Now" Tab
+                        recentBook?.let { book ->
+                            item {
+                                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                    Text(
+                                        text = "CURRENTLY READING",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = AppleRed,
+                                        letterSpacing = 1.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    AppleReadingNowHeroCard(
+                                        book = book,
+                                        onClick = { onBookClick(book.id) }
+                                    )
+                                    Spacer(modifier = Modifier.height(24.dp))
+                                    Text(
+                                        text = "Recent Reads",
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Serif,
+                                        color = AppleTextPrimary
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                }
+                            }
                         }
-                    }
 
-                    Text(
-                        text = "All Books (${filteredBooks.size})",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF3C4043),
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
-
-                    if (isGridView) {
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(2),
-                            contentPadding = PaddingValues(16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            items(filteredBooks, key = { it.id }) { book ->
-                                BookGridCard(book = book, onClick = { onBookClick(book.id) })
+                        items(filteredBooks, key = { it.id }) { book ->
+                            Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                                AppleBookListRow(book = book, onClick = { onBookClick(book.id) })
                             }
                         }
                     } else {
-                        LazyColumn(
-                            contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxSize()
-                        ) {
+                        // "Library" Tab
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "All Books (${filteredBooks.size})",
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Serif,
+                                    color = AppleTextPrimary
+                                )
+                            }
+                        }
+
+                        if (isGridView) {
+                            item {
+                                LazyVerticalGrid(
+                                    columns = GridCells.Fixed(2),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(20.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height((((filteredBooks.size + 1) / 2) * 280).dp)
+                                ) {
+                                    items(filteredBooks, key = { it.id }) { book ->
+                                        AppleBookGridCard(book = book, onClick = { onBookClick(book.id) })
+                                    }
+                                }
+                            }
+                        } else {
                             items(filteredBooks, key = { it.id }) { book ->
-                                BookListRow(book = book, onClick = { onBookClick(book.id) })
+                                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                                    AppleBookListRow(book = book, onClick = { onBookClick(book.id) })
+                                }
                             }
                         }
                     }
@@ -263,80 +358,84 @@ fun LibraryScreen(
             }
         }
     }
-
-    if (showGoogleSyncSheet) {
-        GoogleBooksSyncSheet(
-            viewModel = viewModel,
-            onDismiss = { showGoogleSyncSheet = false },
-            onBookSynced = { bookId ->
-                showGoogleSyncSheet = false
-                onBookClick(bookId)
-            }
-        )
-    }
 }
 
 @Composable
-fun ContinueReadingCard(
+fun AppleReadingNowHeroCard(
     book: Book,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    onClick: () -> Unit
 ) {
     Card(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        modifier = modifier
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(18.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            BookCoverThumbnail(title = book.title, modifier = Modifier.size(60.dp, 80.dp))
-            Spacer(modifier = Modifier.width(16.dp))
+            AppleBookCoverThumbnail(
+                title = book.title,
+                modifier = Modifier
+                    .size(80.dp, 115.dp)
+                    .shadow(6.dp, RoundedCornerShape(10.dp))
+            )
+            Spacer(modifier = Modifier.width(18.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "CONTINUE READING",
-                    fontSize = 11.sp,
+                    text = book.title,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1A73E8)
+                    fontFamily = FontFamily.Serif,
+                    color = AppleTextPrimary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = book.title,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
                     text = book.author,
-                    fontSize = 13.sp,
-                    color = Color.Gray,
+                    fontSize = 14.sp,
+                    color = AppleTextSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                LinearProgressIndicator(
-                    progress = book.progress,
-                    color = Color(0xFF1A73E8),
-                    trackColor = Color(0xFFE8EAED),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp))
-                )
+                Spacer(modifier = Modifier.height(14.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    LinearProgressIndicator(
+                        progress = book.progress,
+                        color = AppleRed,
+                        trackColor = Color(0xFFE5E5EA),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "${(book.progress * 100).toInt()}%",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AppleRed
+                    )
+                }
             }
             Spacer(modifier = Modifier.width(12.dp))
-            IconButton(onClick = onClick) {
+            IconButton(
+                onClick = onClick,
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(AppleRed)
+            ) {
                 Icon(
                     imageVector = Icons.Default.PlayArrow,
                     contentDescription = "Resume",
-                    tint = Color(0xFF1A73E8)
+                    tint = Color.White
                 )
             }
         }
@@ -344,65 +443,63 @@ fun ContinueReadingCard(
 }
 
 @Composable
-fun BookGridCard(
+fun AppleBookGridCard(
     book: Book,
     onClick: () -> Unit
 ) {
-    Card(
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            BookCoverThumbnail(
-                title = book.title,
+        AppleBookCoverThumbnail(
+            title = book.title,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(210.dp)
+                .shadow(6.dp, RoundedCornerShape(12.dp))
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(
+            text = book.title,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Serif,
+            color = AppleTextPrimary,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            lineHeight = 19.sp
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = book.author,
+            fontSize = 13.sp,
+            color = AppleTextSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (book.progress > 0f) {
+            Spacer(modifier = Modifier.height(6.dp))
+            LinearProgressIndicator(
+                progress = book.progress,
+                color = AppleRed,
+                trackColor = Color(0xFFE5E5EA),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp)
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(2.dp))
             )
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                text = book.title,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                lineHeight = 18.sp
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = book.author,
-                fontSize = 12.sp,
-                color = Color.Gray,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            if (book.progress > 0f) {
-                LinearProgressIndicator(
-                    progress = book.progress,
-                    color = Color(0xFF1A73E8),
-                    trackColor = Color(0xFFE8EAED),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                )
-            }
         }
     }
 }
 
 @Composable
-fun BookListRow(
+fun AppleBookListRow(
     book: Book,
     onClick: () -> Unit
 ) {
     Card(
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = Modifier
@@ -415,43 +512,51 @@ fun BookListRow(
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            BookCoverThumbnail(title = book.title, modifier = Modifier.size(50.dp, 70.dp))
+            AppleBookCoverThumbnail(
+                title = book.title,
+                modifier = Modifier
+                    .size(52.dp, 76.dp)
+                    .shadow(3.dp, RoundedCornerShape(6.dp))
+            )
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = book.title,
-                    fontSize = 15.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Serif,
+                    color = AppleTextPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = book.author,
                     fontSize = 13.sp,
-                    color = Color.Gray,
+                    color = AppleTextSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
-                        color = Color(0xFFE8F0FE),
+                        color = Color(0xFFFFECEF),
                         shape = RoundedCornerShape(4.dp)
                     ) {
                         Text(
                             text = book.fileType.name,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1A73E8),
+                            color = AppleRed,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
                     if (book.progress > 0f) {
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
                         Text(
                             text = "${(book.progress * 100).toInt()}% completed",
                             fontSize = 12.sp,
-                            color = Color.Gray
+                            color = AppleTextSecondary
                         )
                     }
                 }
@@ -461,33 +566,53 @@ fun BookListRow(
 }
 
 @Composable
-fun BookCoverThumbnail(
+fun AppleBookCoverThumbnail(
     title: String,
     modifier: Modifier = Modifier
 ) {
     val gradientColors = remember(title) {
         val hash = title.hashCode()
-        val c1 = Color(0xFF0F2027 + (hash % 0x202020))
-        val c2 = Color(0xFF203A43 + ((hash / 2) % 0x303030))
-        listOf(Color(0xFF1A73E8), Color(0xFF0D47A1))
+        when (kotlin.math.abs(hash) % 4) {
+            0 -> listOf(Color(0xFF2C3E50), Color(0xFF000000))
+            1 -> listOf(Color(0xFF8E0E00), Color(0xFF1F1C18))
+            2 -> listOf(Color(0xFF1D263B), Color(0xFF151922))
+            else -> listOf(Color(0xFF3A6073), Color(0xFF16222A))
+        }
     }
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(10.dp))
             .background(Brush.verticalGradient(gradientColors)),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = title,
-            color = Color.White,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-            maxLines = 3,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(8.dp)
+        // Book Spine Shadow Line Effect (Apple Books aesthetic)
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .fillMaxWidth(0.08f)
+                .height(500.dp)
+                .background(Color.Black.copy(alpha = 0.25f))
         )
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Serif,
+                textAlign = TextAlign.Center,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
@@ -512,389 +637,4 @@ private fun getFileName(context: android.content.Context, uri: Uri): String? {
         }
     }
     return result
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun GoogleBooksSyncSheet(
-    viewModel: LibraryViewModel,
-    onDismiss: () -> Unit,
-    onBookSynced: (String) -> Unit
-) {
-    val googleToken by viewModel.googleToken.collectAsState()
-    val userEmail by viewModel.userEmail.collectAsState()
-    val myVolumes by viewModel.myBookshelfVolumes.collectAsState()
-    val myShelves by viewModel.myBookshelves.collectAsState()
-    val isLoadingMyBooks by viewModel.isLoadingMyBooks.collectAsState()
-
-    var selectedTab by remember { mutableStateOf(0) }
-    var tokenInput by remember { mutableStateOf("") }
-    var emailInput by remember { mutableStateOf("") }
-    var showConnectDialog by remember { mutableStateOf(false) }
-
-    var searchStoreQuery by remember { mutableStateOf("") }
-    val storeResults by viewModel.googleSearchResults.collectAsState()
-    val isSearchingStore by viewModel.isSearchingGoogle.collectAsState()
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Color.White
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.CloudDownload,
-                    contentDescription = null,
-                    tint = Color(0xFF1A73E8),
-                    modifier = Modifier.size(28.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Google Play Books Sync",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF202124)
-                    )
-                    Text(
-                        text = if (googleToken != null) "Connected: ${userEmail ?: "Google Account"}" else "Sync your personal Google Play Books library",
-                        fontSize = 13.sp,
-                        color = if (googleToken != null) Color(0xFF1A73E8) else Color.Gray,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ModeChip(
-                    title = "My Google Books",
-                    isSelected = selectedTab == 0,
-                    themeColors = com.playbook.reader.domain.model.ReaderThemeColors.LIGHT,
-                    onClick = {
-                        selectedTab = 0
-                        if (googleToken != null && myVolumes.isEmpty()) {
-                            viewModel.loadMyBookshelves()
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                ModeChip(
-                    title = "Store Search",
-                    isSelected = selectedTab == 1,
-                    themeColors = com.playbook.reader.domain.model.ReaderThemeColors.LIGHT,
-                    onClick = { selectedTab = 1 },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            if (selectedTab == 0) {
-                if (googleToken == null) {
-                    Card(
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F0FE)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CloudDownload,
-                                contentDescription = null,
-                                tint = Color(0xFF1A73E8),
-                                modifier = Modifier.size(48.dp)
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = "Connect Your Google Account",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1A73E8)
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Directly pull your personal Google Play Books ('My eBooks', 'Purchases', 'Currently Reading') into the continuous vertical scroll reader.",
-                                fontSize = 13.sp,
-                                color = Color.DarkGray,
-                                textAlign = TextAlign.Center
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Button(
-                                onClick = { showConnectDialog = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8)),
-                                shape = RoundedCornerShape(20.dp)
-                            ) {
-                                Text("Connect Google Account Token", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "My Personal Library (${myVolumes.size} books)",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF3C4043)
-                        )
-                        Row {
-                            IconButton(onClick = { viewModel.loadMyBookshelves() }) {
-                                Icon(Icons.Default.Sync, contentDescription = "Refresh", tint = Color(0xFF1A73E8))
-                            }
-                            Button(
-                                onClick = { viewModel.logoutGoogle() },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color.LightGray),
-                                shape = RoundedCornerShape(16.dp),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                            ) {
-                                Text("Disconnect", fontSize = 11.sp, color = Color.Black)
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    if (isLoadingMyBooks) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(220.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(color = Color(0xFF1A73E8))
-                        }
-                    } else if (myVolumes.isEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(200.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "No books found in your Google Play Books library.\nTap Refresh or check account connection.",
-                                fontSize = 13.sp,
-                                color = Color.Gray,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(320.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            items(myVolumes, key = { it.id }) { item ->
-                                val info = item.volumeInfo
-                                Card(
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA)),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        BookCoverThumbnail(
-                                            title = info?.title ?: "My Book",
-                                            modifier = Modifier.size(45.dp, 65.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(12.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = info?.title ?: "Untitled",
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                            Text(
-                                                text = info?.authors?.joinToString(", ") ?: "Unknown Author",
-                                                fontSize = 12.sp,
-                                                color = Color.Gray,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                            Text(
-                                                text = "Google Play Books Library",
-                                                fontSize = 11.sp,
-                                                color = Color(0xFF1A73E8)
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Button(
-                                            onClick = {
-                                                val syncedBook = viewModel.syncGoogleBook(item)
-                                                onBookSynced(syncedBook.id)
-                                            },
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8)),
-                                            shape = RoundedCornerShape(20.dp),
-                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                        ) {
-                                            Text("Sync", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            } else {
-                OutlinedTextField(
-                    value = searchStoreQuery,
-                    onValueChange = {
-                        searchStoreQuery = it
-                        viewModel.searchGoogleBooks(it)
-                    },
-                    placeholder = { Text("Search Google Play Store...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF1A73E8),
-                        unfocusedBorderColor = Color.LightGray
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                if (isSearchingStore) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(color = Color(0xFF1A73E8))
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(300.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(storeResults, key = { it.id }) { item ->
-                            val info = item.volumeInfo
-                            Card(
-                                shape = RoundedCornerShape(12.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    BookCoverThumbnail(
-                                        title = info?.title ?: "Book",
-                                        modifier = Modifier.size(45.dp, 65.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = info?.title ?: "Untitled",
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Text(
-                                            text = info?.authors?.joinToString(", ") ?: "Unknown Author",
-                                            fontSize = 12.sp,
-                                            color = Color.Gray,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Button(
-                                        onClick = {
-                                            val syncedBook = viewModel.syncGoogleBook(item)
-                                            onBookSynced(syncedBook.id)
-                                        },
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8)),
-                                        shape = RoundedCornerShape(20.dp)
-                                    ) {
-                                        Text("Sync", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if (showConnectDialog) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showConnectDialog = false },
-            title = { Text("Connect Google Play Account") },
-            text = {
-                Column {
-                    Text(
-                        text = "Enter your Google Account email and OAuth Bearer Access Token (or API token with books scope).",
-                        fontSize = 13.sp,
-                        color = Color.Gray
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = emailInput,
-                        onValueChange = { emailInput = it },
-                        label = { Text("Google Account Email") },
-                        placeholder = { Text("user@gmail.com") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = tokenInput,
-                        onValueChange = { tokenInput = it },
-                        label = { Text("Google Books OAuth Token / Key") },
-                        placeholder = { Text("ya29.a0A...") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (tokenInput.isNotBlank()) {
-                            viewModel.saveGoogleToken(tokenInput, emailInput.ifBlank { "Google Account" })
-                            showConnectDialog = false
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8))
-                ) {
-                    Text("Connect & Sync")
-                }
-            },
-            dismissButton = {
-                Button(
-                    onClick = { showConnectDialog = false },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.LightGray)
-                ) {
-                    Text("Cancel", color = Color.Black)
-                }
-            }
-        )
-    }
 }

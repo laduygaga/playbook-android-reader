@@ -5,8 +5,7 @@ import androidx.compose.ui.graphics.Color
 enum class BookFileType {
     EPUB,
     TXT,
-    PDF,
-    GOOGLE_PLAY_BOOK
+    PDF
 }
 
 data class Book(
@@ -22,11 +21,8 @@ data class Book(
     val currentChapterIndex: Int = 0,
     val currentScrollOffset: Int = 0,
     val addedTimestamp: Long = System.currentTimeMillis(),
-    val googleVolumeId: String? = null,
     val description: String? = null,
-    val categories: String? = null,
-    val previewLink: String? = null,
-    val isSyncedFromGoogle: Boolean = false
+    val categories: String? = null
 )
 
 data class Chapter(
@@ -39,13 +35,13 @@ data class Chapter(
 )
 
 enum class ReadingMode {
-    VERTICAL_SCROLL, // User's requested Google Play Books vertical scrolling mode
-    HORIZONTAL_PAGED  // Classic Google Play Books horizontal paging mode
+    VERTICAL_SCROLL,
+    HORIZONTAL_PAGED
 }
 
 enum class FontStyleOption(val displayName: String) {
-    SANS_SERIF("Sans Serif"),
-    SERIF("Serif"),
+    SANS_SERIF("San Francisco"),
+    SERIF("New York Serif"),
     MONOSPACE("Monospace")
 }
 
@@ -60,38 +56,38 @@ data class ReaderThemeColors(
     companion object {
         val LIGHT = ReaderThemeColors(
             name = "Light",
-            background = Color(0xFFFAFAFA),
+            background = Color(0xFFF2F2F7),
             surface = Color(0xFFFFFFFF),
-            text = Color(0xFF212121),
-            secondaryText = Color(0xFF757575),
-            accent = Color(0xFF1A73E8) // Google Blue
+            text = Color(0xFF000000),
+            secondaryText = Color(0xFF8E8E93),
+            accent = Color(0xFFFA2D48) // Apple Books Accent
         )
 
         val SEPIA = ReaderThemeColors(
             name = "Sepia",
-            background = Color(0xFFFBF0D9),
-            surface = Color(0xFFF4E8C1),
-            text = Color(0xFF5F4B32),
-            secondaryText = Color(0xFF8C7355),
-            accent = Color(0xFF8D5B28)
+            background = Color(0xFFFAF4E8),
+            surface = Color(0xFFF3EAD8),
+            text = Color(0xFF3C3122),
+            secondaryText = Color(0xFF8E7D6B),
+            accent = Color(0xFFD93B2B)
         )
 
         val DARK = ReaderThemeColors(
             name = "Dark",
-            background = Color(0xFF121212),
-            surface = Color(0xFF1E1E1E),
-            text = Color(0xFFE0E0E0),
-            secondaryText = Color(0xFFA0A0A0),
-            accent = Color(0xFF8AB4F8) // Light Google Blue
+            background = Color(0xFF1C1C1E),
+            surface = Color(0xFF2C2C2E),
+            text = Color(0xFFFFFFFF),
+            secondaryText = Color(0xFF8E8E93),
+            accent = Color(0xFFFA2D48)
         )
 
         val NIGHT = ReaderThemeColors(
             name = "Amoled Night",
             background = Color(0xFF000000),
-            surface = Color(0xFF121212),
-            text = Color(0xFFD4D4D4),
-            secondaryText = Color(0xFF808080),
-            accent = Color(0xFF669DF6)
+            surface = Color(0xFF1C1C1E),
+            text = Color(0xFFE5E5EA),
+            secondaryText = Color(0xFF8E8E93),
+            accent = Color(0xFFFF3B30)
         )
     }
 }
@@ -103,5 +99,5 @@ data class ReaderSettings(
     val readingMode: ReadingMode = ReadingMode.VERTICAL_SCROLL,
     val themeName: String = "Light",
     val keepScreenOn: Boolean = true,
-    val textMarginDp: Int = 16
+    val textMarginDp: Int = 20
 )

@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Playbook Reader</string>
-    <string name="library_title">My Library</string>
+    <string name="app_name">Books</string>
+    <string name="library_title">Reading Now</string>
     <string name="import_book">Import Book</string>
     <string name="no_books">No books in your library.\nTap + to import an EPUB or TXT file.</string>
-    <string name="scrolling_mode">Vertical Scroll Mode</string>
-    <string name="paged_mode">Paged Mode</string>
+    <string name="scrolling_mode">Continuous Scroll</string>
+    <string name="paged_mode">Page Turn</string>
     <string name="font_size">Font Size</string>
     <string name="line_height">Line Spacing</string>
-    <string name="table_of_contents">Table of Contents</string>
+    <string name="table_of_contents">Contents</string>
     <string name="search_in_book">Search in Book</string>
-    <string name="theme_light">Light</string>
+    <string name="theme_light">White</string>
     <string name="theme_sepia">Sepia</string>
-    <string name="theme_dark">Dark</string>
-    <string name="theme_amoled">Amoled Night</string>
+    <string name="theme_dark">Gray</string>
+    <string name="theme_amoled">Night</string>
 </resources>

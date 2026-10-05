@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -34,9 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -44,11 +41,7 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
@@ -68,7 +61,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -91,8 +83,6 @@ fun ReaderScreen(
     val book by viewModel.book.collectAsState()
     val chapters by viewModel.chapters.collectAsState()
     val settings by viewModel.settings.collectAsState()
-    val isSearchOpen by viewModel.isSearchOpen.collectAsState()
-    val searchQuery by viewModel.searchQuery.collectAsState()
 
     var showControls by remember { mutableStateOf(true) }
     var showSettingsSheet by remember { mutableStateOf(false) }
@@ -142,7 +132,8 @@ fun ReaderScreen(
                 Text(
                     text = "Loading book chapters...",
                     color = themeColors.text,
-                    fontSize = 16.sp
+                    fontSize = 16.sp,
+                    fontFamily = FontFamily.Serif
                 )
             }
         } else if (settings.readingMode == ReadingMode.VERTICAL_SCROLL) {
@@ -160,7 +151,7 @@ fun ReaderScreen(
                     items = chapters,
                     key = { _, chapter -> chapter.id }
                 ) { index, chapter ->
-                    ChapterView(
+                    AppleChapterView(
                         chapter = chapter,
                         settings = settings,
                         themeColors = themeColors
@@ -196,7 +187,7 @@ fun ReaderScreen(
                         .padding(horizontal = settings.textMarginDp.dp, vertical = 72.dp)
                         .verticalScroll(rememberScrollState())
                 ) {
-                    ChapterView(
+                    AppleChapterView(
                         chapter = chapter,
                         settings = settings,
                         themeColors = themeColors
@@ -205,6 +196,7 @@ fun ReaderScreen(
             }
         }
 
+        // Apple Books Top Navigation Bar
         AnimatedVisibility(
             visible = showControls,
             enter = fadeIn() + slideInVertically(initialOffsetY = { -it }),
@@ -213,18 +205,21 @@ fun ReaderScreen(
         ) {
             Surface(
                 color = themeColors.surface.copy(alpha = 0.95f),
-                shadowElevation = 4.dp,
+                shadowElevation = 2.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 TopAppBar(
                     title = {
                         Text(
-                            text = book?.title ?: "Reader",
+                            text = book?.title ?: "Book",
                             color = themeColors.text,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Medium
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Serif,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
                         )
                     },
                     navigationIcon = {
@@ -232,26 +227,11 @@ fun ReaderScreen(
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Back",
-                                tint = themeColors.text
+                                tint = themeColors.accent
                             )
                         }
                     },
                     actions = {
-                        IconButton(onClick = {
-                            val newMode = if (settings.readingMode == ReadingMode.VERTICAL_SCROLL) {
-                                ReadingMode.HORIZONTAL_PAGED
-                            } else {
-                                ReadingMode.VERTICAL_SCROLL
-                            }
-                            viewModel.updateSettings(settings.copy(readingMode = newMode))
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.SwapVert,
-                                contentDescription = "Toggle Reading Mode",
-                                tint = if (settings.readingMode == ReadingMode.VERTICAL_SCROLL) themeColors.accent else themeColors.secondaryText
-                            )
-                        }
-
                         IconButton(onClick = { showTocSheet = true }) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.List,
@@ -260,11 +240,21 @@ fun ReaderScreen(
                             )
                         }
 
-                        IconButton(onClick = { showSettingsSheet = true }) {
-                            Icon(
-                                imageVector = Icons.Default.FormatSize,
-                                contentDescription = "Typography Settings",
-                                tint = themeColors.text
+                        // Apple Books "Aa" Icon Button
+                        Box(
+                            modifier = Modifier
+                                .padding(end = 8.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { showSettingsSheet = true }
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Aa",
+                                color = themeColors.text,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Serif
                             )
                         }
                     },
@@ -275,6 +265,7 @@ fun ReaderScreen(
             }
         }
 
+        // Apple Books Floating Bottom Bar
         AnimatedVisibility(
             visible = showControls,
             enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
@@ -341,6 +332,7 @@ fun ReaderScreen(
         }
     }
 
+    // Apple Books Typography Settings Sheet ("Aa")
     if (showSettingsSheet) {
         ModalBottomSheet(
             onDismissRequest = { showSettingsSheet = false },
@@ -353,20 +345,92 @@ fun ReaderScreen(
                     .padding(24.dp)
             ) {
                 Text(
-                    text = "Reading Settings",
+                    text = "Text & Appearance",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Serif,
                     color = themeColors.text
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                Text("Reading Mode", fontSize = 14.sp, color = themeColors.secondaryText)
+                // Font Size Control
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(themeColors.background)
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    IconButton(onClick = {
+                        val newSize = (settings.fontSizeSp - 2f).coerceAtLeast(12f)
+                        viewModel.updateSettings(settings.copy(fontSizeSp = newSize))
+                    }) {
+                        Text("A", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = themeColors.text)
+                    }
+
+                    Slider(
+                        value = settings.fontSizeSp,
+                        onValueChange = { viewModel.updateSettings(settings.copy(fontSizeSp = it)) },
+                        valueRange = 12f..32f,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 8.dp),
+                        colors = SliderDefaults.colors(
+                            thumbColor = themeColors.accent,
+                            activeTrackColor = themeColors.accent
+                        )
+                    )
+
+                    IconButton(onClick = {
+                        val newSize = (settings.fontSizeSp + 2f).coerceAtMost(32f)
+                        viewModel.updateSettings(settings.copy(fontSizeSp = newSize))
+                    }) {
+                        Text("A", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = themeColors.text)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Font Selection
+                Text("Font Family", fontSize = 13.sp, color = themeColors.secondaryText)
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FontStyleOption.values().forEach { option ->
+                        val isSelected = settings.fontStyle == option
+                        Surface(
+                            color = if (isSelected) themeColors.accent else themeColors.background,
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { viewModel.updateSettings(settings.copy(fontStyle = option)) }
+                        ) {
+                            Box(
+                                modifier = Modifier.padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = option.displayName,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) Color.White else themeColors.text
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Reading Mode Selector
+                Text("Page Mode", fontSize = 13.sp, color = themeColors.secondaryText)
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     val isScroll = settings.readingMode == ReadingMode.VERTICAL_SCROLL
                     ModeChip(
-                        title = "Vertical Scroll",
+                        title = "Continuous Scroll",
                         isSelected = isScroll,
                         themeColors = themeColors,
                         onClick = {
@@ -375,7 +439,7 @@ fun ReaderScreen(
                         modifier = Modifier.weight(1f)
                     )
                     ModeChip(
-                        title = "Paged Mode",
+                        title = "Page Turn",
                         isSelected = !isScroll,
                         themeColors = themeColors,
                         onClick = {
@@ -387,55 +451,23 @@ fun ReaderScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Font Size", fontSize = 14.sp, color = themeColors.secondaryText)
-                    Text("${settings.fontSizeSp.toInt()} sp", fontSize = 14.sp, color = themeColors.accent)
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = {
-                        val newSize = (settings.fontSizeSp - 2f).coerceAtLeast(12f)
-                        viewModel.updateSettings(settings.copy(fontSizeSp = newSize))
-                    }) {
-                        Icon(Icons.Default.Remove, contentDescription = "Decrease Font Size", tint = themeColors.text)
-                    }
-                    Slider(
-                        value = settings.fontSizeSp,
-                        onValueChange = { viewModel.updateSettings(settings.copy(fontSizeSp = it)) },
-                        valueRange = 12f..32f,
-                        modifier = Modifier.weight(1f),
-                        colors = SliderDefaults.colors(thumbColor = themeColors.accent, activeTrackColor = themeColors.accent)
-                    )
-                    IconButton(onClick = {
-                        val newSize = (settings.fontSizeSp + 2f).coerceAtMost(32f)
-                        viewModel.updateSettings(settings.copy(fontSizeSp = newSize))
-                    }) {
-                        Icon(Icons.Default.Add, contentDescription = "Increase Font Size", tint = themeColors.text)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text("Color Theme", fontSize = 14.sp, color = themeColors.secondaryText)
+                // Color Themes
+                Text("Theme", fontSize = 13.sp, color = themeColors.secondaryText)
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    ThemeCircle("Light", ReaderThemeColors.LIGHT, settings.themeName == "Light", themeColors) {
+                    ThemeCircle("White", ReaderThemeColors.LIGHT, settings.themeName == "Light", themeColors) {
                         viewModel.updateSettings(settings.copy(themeName = "Light"))
                     }
                     ThemeCircle("Sepia", ReaderThemeColors.SEPIA, settings.themeName == "Sepia", themeColors) {
                         viewModel.updateSettings(settings.copy(themeName = "Sepia"))
                     }
-                    ThemeCircle("Dark", ReaderThemeColors.DARK, settings.themeName == "Dark", themeColors) {
+                    ThemeCircle("Gray", ReaderThemeColors.DARK, settings.themeName == "Dark", themeColors) {
                         viewModel.updateSettings(settings.copy(themeName = "Dark"))
                     }
-                    ThemeCircle("Amoled", ReaderThemeColors.NIGHT, settings.themeName == "Amoled Night", themeColors) {
+                    ThemeCircle("Night", ReaderThemeColors.NIGHT, settings.themeName == "Amoled Night", themeColors) {
                         viewModel.updateSettings(settings.copy(themeName = "Amoled Night"))
                     }
                 }
@@ -457,9 +489,10 @@ fun ReaderScreen(
                     .padding(24.dp)
             ) {
                 Text(
-                    text = "Table of Contents",
-                    fontSize = 20.sp,
+                    text = "Contents",
+                    fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Serif,
                     color = themeColors.text
                 )
                 Spacer(modifier = Modifier.height(16.dp))
@@ -469,8 +502,9 @@ fun ReaderScreen(
                         val isCurrent = lazyListState.firstVisibleItemIndex == index
                         Card(
                             colors = CardDefaults.cardColors(
-                                containerColor = if (isCurrent) themeColors.accent.copy(alpha = 0.15f) else Color.Transparent
+                                containerColor = if (isCurrent) themeColors.accent.copy(alpha = 0.12f) else Color.Transparent
                             ),
+                            shape = RoundedCornerShape(10.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
@@ -484,12 +518,13 @@ fun ReaderScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(16.dp),
+                                    .padding(14.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "${index + 1}.",
+                                    text = "${index + 1}",
                                     fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
                                     color = if (isCurrent) themeColors.accent else themeColors.secondaryText,
                                     modifier = Modifier.width(32.dp)
                                 )
@@ -497,6 +532,7 @@ fun ReaderScreen(
                                     text = chapter.title,
                                     fontSize = 15.sp,
                                     fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                    fontFamily = FontFamily.Serif,
                                     color = if (isCurrent) themeColors.accent else themeColors.text,
                                     modifier = Modifier.weight(1f)
                                 )
@@ -507,11 +543,10 @@ fun ReaderScreen(
             }
         }
     }
-
 }
 
 @Composable
-fun ChapterView(
+fun AppleChapterView(
     chapter: Chapter,
     settings: ReaderSettings,
     themeColors: ReaderThemeColors
@@ -527,9 +562,9 @@ fun ChapterView(
             text = chapter.title,
             fontSize = (settings.fontSizeSp + 6).sp,
             fontWeight = FontWeight.Bold,
-            fontFamily = fontFamily,
+            fontFamily = FontFamily.Serif,
             color = themeColors.text,
-            modifier = Modifier.padding(bottom = 16.dp)
+            modifier = Modifier.padding(bottom = 20.dp)
         )
 
         Text(
@@ -552,8 +587,7 @@ fun ModeChip(
 ) {
     Surface(
         color = if (isSelected) themeColors.accent else themeColors.background,
-        shape = RoundedCornerShape(20.dp),
-        border = if (!isSelected) androidx.compose.foundation.BorderStroke(1.dp, themeColors.secondaryText.copy(alpha = 0.3f)) else null,
+        shape = RoundedCornerShape(10.dp),
         modifier = modifier.clickable { onClick() }
     ) {
         Box(modifier = Modifier.padding(vertical = 10.dp, horizontal = 12.dp), contentAlignment = Alignment.Center) {
@@ -591,7 +625,8 @@ fun ThemeCircle(
                 text = "Aa",
                 color = colors.text,
                 fontSize = 14.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Serif
             )
         }
         Spacer(modifier = Modifier.height(4.dp))
