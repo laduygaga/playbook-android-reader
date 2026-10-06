@@ -106,7 +106,7 @@ data class ReaderSettings(
     val fontSizeSp: Float = 18f,
     val lineSpacingMultiplier: Float = 1.4f,
     val fontStyle: FontStyleOption = FontStyleOption.SERIF,
-    val readingMode: ReadingMode = ReadingMode.VERTICAL_SCROLL,
+    val readingMode: ReadingMode = ReadingMode.HORIZONTAL_PAGED,
     val themeName: String = "Light",
     val keepScreenOn: Boolean = true,
     val textMarginDp: Int = 20

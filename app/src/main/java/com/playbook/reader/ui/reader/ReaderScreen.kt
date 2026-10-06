@@ -55,6 +55,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -113,11 +114,33 @@ fun ReaderScreen(
         initialPage = book?.currentChapterIndex ?: 0,
         pageCount = { chapters.size }
     )
+    var pagedScrollOffset by remember { mutableStateOf(book?.currentScrollOffset ?: 0) }
 
     val currentIdx = if (settings.readingMode == ReadingMode.VERTICAL_SCROLL) {
         lazyListState.firstVisibleItemIndex
     } else {
         pagerState.currentPage
+    }
+
+    val saveCurrentPosition = {
+        if (chapters.isNotEmpty()) {
+            if (settings.readingMode == ReadingMode.VERTICAL_SCROLL) {
+                val idx = lazyListState.firstVisibleItemIndex
+                val offset = lazyListState.firstVisibleItemScrollOffset
+                val progress = (idx + 1).toFloat() / chapters.size.toFloat()
+                viewModel.saveProgress(idx, offset, progress)
+            } else {
+                val page = pagerState.currentPage
+                val progress = (page + 1).toFloat() / chapters.size.toFloat()
+                viewModel.saveProgress(page, pagedScrollOffset, progress)
+            }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            saveCurrentPosition()
+        }
     }
 
     val jumpToChapter: (Int) -> Unit = { targetIdx ->
@@ -139,7 +162,7 @@ fun ReaderScreen(
                 chapters.size
             )
         }
-        .debounce(500L)
+        .debounce(300L)
         .collect { (itemIndex, scrollOffset, totalChapters) ->
             if (totalChapters > 0 && settings.readingMode == ReadingMode.VERTICAL_SCROLL) {
                 val progress = (itemIndex + 1).toFloat() / totalChapters.toFloat()
@@ -149,25 +172,26 @@ fun ReaderScreen(
     }
 
     @OptIn(FlowPreview::class)
-    LaunchedEffect(pagerState, settings.readingMode) {
+    LaunchedEffect(pagerState, pagedScrollOffset, settings.readingMode) {
         snapshotFlow {
-            Pair(
+            Triple(
                 pagerState.currentPage,
+                pagedScrollOffset,
                 chapters.size
             )
         }
-        .debounce(500L)
-        .collect { (page, totalChapters) ->
+        .debounce(300L)
+        .collect { (page, scrollOffset, totalChapters) ->
             if (totalChapters > 0 && settings.readingMode == ReadingMode.HORIZONTAL_PAGED) {
                 val progress = (page + 1).toFloat() / totalChapters.toFloat()
-                viewModel.saveProgress(page, 0, progress)
+                viewModel.saveProgress(page, scrollOffset, progress)
             }
         }
     }
 
     LaunchedEffect(settings.readingMode) {
         if (settings.readingMode == ReadingMode.VERTICAL_SCROLL) {
-            lazyListState.scrollToItem(pagerState.currentPage)
+            lazyListState.scrollToItem(pagerState.currentPage, pagedScrollOffset)
         } else {
             pagerState.scrollToPage(lazyListState.firstVisibleItemIndex)
         }
@@ -234,11 +258,19 @@ fun ReaderScreen(
                 modifier = Modifier.fillMaxSize()
             ) { page ->
                 val chapter = chapters[page]
+                val pageScrollState = rememberScrollState(
+                    initial = if (page == (book?.currentChapterIndex ?: 0)) (book?.currentScrollOffset ?: 0) else 0
+                )
+                LaunchedEffect(pageScrollState.value, pagerState.currentPage) {
+                    if (page == pagerState.currentPage) {
+                        pagedScrollOffset = pageScrollState.value
+                    }
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = settings.textMarginDp.dp, vertical = 72.dp)
-                        .verticalScroll(rememberScrollState())
+                        .verticalScroll(pageScrollState)
                 ) {
                     AppleChapterView(
                         chapter = chapter,
@@ -276,7 +308,10 @@ fun ReaderScreen(
                         )
                     },
                     navigationIcon = {
-                        IconButton(onClick = onBackClick) {
+                        IconButton(onClick = {
+                            saveCurrentPosition()
+                            onBackClick()
+                        }) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Back",

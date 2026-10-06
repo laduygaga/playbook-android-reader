@@ -50,7 +50,7 @@ class BookRepository(private val context: Context) {
 
     private fun saveBooksToPrefs(userBooks: List<Book>) {
         val json = gson.toJson(userBooks)
-        prefs.edit().putString("user_books", json).apply()
+        prefs.edit().putString("user_books", json).commit()
     }
 
     fun importBook(uri: Uri, fileName: String): Book? {
