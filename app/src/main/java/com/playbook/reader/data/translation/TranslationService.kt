@@ -32,16 +32,11 @@ class TranslationService {
             val translatedParagraphs = mutableListOf<String>()
 
             for (paragraph in paragraphs) {
-                if (paragraph.length > 1500) {
-                    // Split long paragraph by sentences if needed
-                    val sentences = paragraph.split(Regex("(?<=[.!?])\\s+"))
-                    val translatedSentences = sentences.map { sentence ->
-                        if (sentence.isNotBlank()) translateSingleChunk(sentence, targetLanguage.code) else sentence
-                    }
-                    translatedParagraphs.add(translatedSentences.joinToString(" "))
-                } else {
-                    translatedParagraphs.add(translateSingleChunk(paragraph, targetLanguage.code))
+                val chunks = splitIntoChunks(paragraph, maxChars = 350)
+                val translatedChunks = chunks.map { chunk ->
+                    if (chunk.isNotBlank()) translateSingleChunk(chunk, targetLanguage.code) else chunk
                 }
+                translatedParagraphs.add(translatedChunks.joinToString(" "))
             }
 
             val fullTranslatedText = translatedParagraphs.joinToString("\n\n")
@@ -104,14 +99,60 @@ class TranslationService {
 
         if (connection.responseCode == 200) {
             val jsonResponse = connection.inputStream.bufferedReader().use { it.readText() }
+            if (jsonResponse.contains("QUERY LENGTH LIMIT EXCEEDED") || jsonResponse.contains("MYMEMORY WARNING")) {
+                return chunk
+            }
             val root = JsonParser.parseString(jsonResponse).asJsonObject
             val responseData = root.getAsJsonObject("responseData")
-            val translated = responseData.get("translatedText").asString
+            val translated = responseData.get("translatedText")?.asString ?: ""
             if (translated.isNotBlank() && !translated.contains("MYMEMORY WARNING")) {
                 return translated
             }
         }
         return chunk
+    }
+
+    private fun splitIntoChunks(text: String, maxChars: Int = 350): List<String> {
+        if (text.length <= maxChars) return listOf(text)
+
+        val sentences = text.split(Regex("(?<=[.!?])\\s+"))
+        val chunks = mutableListOf<String>()
+        var currentChunk = StringBuilder()
+
+        for (sentence in sentences) {
+            if (sentence.length > maxChars) {
+                if (currentChunk.isNotEmpty()) {
+                    chunks.add(currentChunk.toString().trim())
+                    currentChunk = StringBuilder()
+                }
+                val words = sentence.split(" ")
+                for (word in words) {
+                    if (currentChunk.length + word.length + 1 > maxChars) {
+                        if (currentChunk.isNotEmpty()) {
+                            chunks.add(currentChunk.toString().trim())
+                            currentChunk = StringBuilder()
+                        }
+                    }
+                    if (currentChunk.isNotEmpty()) currentChunk.append(" ")
+                    currentChunk.append(word)
+                }
+            } else {
+                if (currentChunk.length + sentence.length + 1 > maxChars) {
+                    if (currentChunk.isNotEmpty()) {
+                        chunks.add(currentChunk.toString().trim())
+                        currentChunk = StringBuilder()
+                    }
+                }
+                if (currentChunk.isNotEmpty()) currentChunk.append(" ")
+                currentChunk.append(sentence)
+            }
+        }
+
+        if (currentChunk.isNotEmpty()) {
+            chunks.add(currentChunk.toString().trim())
+        }
+
+        return chunks.filter { it.isNotBlank() }
     }
 
     fun clearCache() {
