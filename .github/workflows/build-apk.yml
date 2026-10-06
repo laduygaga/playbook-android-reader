@@ -42,8 +42,29 @@ jobs:
       - name: Make Gradle Wrapper Executable
         run: chmod +x gradlew
 
+      - name: Ensure Persistent Keystore
+        run: |
+          mkdir -p keystore
+          if [ ! -f keystore/debug.keystore ]; then
+            echo "Generating persistent keystore..."
+            keytool -genkey -v -keystore keystore/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Playbook Reader,O=Playbook,C=US"
+          fi
+
       - name: Build Android Debug APK
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
         run: ./gradlew assembleDebug --stacktrace
+
+      - name: Commit Keystore if Created
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        run: |
+          if git status --porcelain | grep -q "keystore/debug.keystore"; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add keystore/debug.keystore
+            git commit -m "chore(ci): commit persistent keystore for consistent app updates"
+            git push origin main || true
+          fi
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
@@ -70,7 +91,9 @@ jobs:
           tag_name: latest
           name: Latest Automated Build
           body: |
-            Automated build generated from main branch commit `${{ github.sha }}`.
+            Automated build generated from main branch commit `${{ github.sha }}` (Build #${{ github.run_number }}).
+            
+            **In-place Updates Supported**: APKs built after this release share a persistent signing key and auto-incrementing `versionCode` so you can update directly without uninstalling!
             
             **Download APK**: Download `app-debug.apk` below to test on Android.
           files: app/build/outputs/apk/debug/app-debug.apk

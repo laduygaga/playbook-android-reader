@@ -4,6 +4,10 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+val envBuildNumber = System.getenv("BUILD_NUMBER")?.toIntOrNull()
+    ?: System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()
+    ?: 1
+
 android {
     namespace = "com.playbook.reader"
     compileSdk = 35
@@ -12,14 +16,36 @@ android {
         applicationId = "com.playbook.reader"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = envBuildNumber
+        versionName = "1.0.$envBuildNumber"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("shared") {
+            val keystoreFile = rootProject.file("keystore/debug.keystore")
+            if (keystoreFile.exists()) {
+                storeFile = keystoreFile
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            val keystoreFile = rootProject.file("keystore/debug.keystore")
+            if (keystoreFile.exists()) {
+                signingConfig = signingConfigs.getByName("shared")
+            }
+        }
         release {
+            val keystoreFile = rootProject.file("keystore/debug.keystore")
+            if (keystoreFile.exists()) {
+                signingConfig = signingConfigs.getByName("shared")
+            }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
