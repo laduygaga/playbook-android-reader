@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
@@ -34,6 +35,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.Card
@@ -86,10 +90,12 @@ fun ReaderScreen(
     val book by viewModel.book.collectAsState()
     val chapters by viewModel.chapters.collectAsState()
     val settings by viewModel.settings.collectAsState()
+    val bookmarks by viewModel.bookmarks.collectAsState()
 
     var showControls by remember { mutableStateOf(true) }
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showTocSheet by remember { mutableStateOf(false) }
+    var tocTabSelected by remember { mutableStateOf(0) }
 
     val coroutineScope = rememberCoroutineScope()
     val themeColors = when (settings.themeName) {
@@ -279,6 +285,26 @@ fun ReaderScreen(
                         }
                     },
                     actions = {
+                        val currentChapterTitle = chapters.getOrNull(currentIdx)?.title ?: "Chapter ${currentIdx + 1}"
+                        val isCurrentBookmarked = bookmarks.any { it.chapterIndex == currentIdx }
+
+                        IconButton(onClick = {
+                            val scrollOffset = if (settings.readingMode == ReadingMode.VERTICAL_SCROLL) {
+                                lazyListState.firstVisibleItemScrollOffset
+                            } else 0
+                            viewModel.toggleBookmark(
+                                chapterIndex = currentIdx,
+                                chapterTitle = currentChapterTitle,
+                                scrollOffset = scrollOffset
+                            )
+                        }) {
+                            Icon(
+                                imageVector = if (isCurrentBookmarked) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
+                                contentDescription = "Bookmark",
+                                tint = if (isCurrentBookmarked) themeColors.accent else themeColors.text
+                            )
+                        }
+
                         IconButton(onClick = { showTocSheet = true }) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.List,
@@ -532,52 +558,165 @@ fun ReaderScreen(
                     .fillMaxWidth()
                     .padding(24.dp)
             ) {
-                Text(
-                    text = "Contents",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Serif,
-                    color = themeColors.text
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-
-                LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                    itemsIndexed(chapters) { index, chapter ->
-                        val isCurrent = currentIdx == index
-                        Card(
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (isCurrent) themeColors.accent.copy(alpha = 0.12f) else Color.Transparent
-                            ),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    jumpToChapter(index)
-                                    showTocSheet = false
-                                }
-                                .padding(vertical = 4.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Surface(
+                        color = if (tocTabSelected == 0) themeColors.accent else themeColors.background,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { tocTabSelected = 0 }
+                    ) {
+                        Box(
+                            modifier = Modifier.padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Row(
+                            Text(
+                                text = "Contents",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (tocTabSelected == 0) Color.White else themeColors.text
+                            )
+                        }
+                    }
+                    Surface(
+                        color = if (tocTabSelected == 1) themeColors.accent else themeColors.background,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { tocTabSelected = 1 }
+                    ) {
+                        Box(
+                            modifier = Modifier.padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Bookmarks (${bookmarks.size})",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (tocTabSelected == 1) Color.White else themeColors.text
+                            )
+                        }
+                    }
+                }
+
+                if (tocTabSelected == 0) {
+                    LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                        itemsIndexed(chapters) { index, chapter ->
+                            val isCurrent = currentIdx == index
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isCurrent) themeColors.accent.copy(alpha = 0.12f) else Color.Transparent
+                                ),
+                                shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                    .clickable {
+                                        jumpToChapter(index)
+                                        showTocSheet = false
+                                    }
+                                    .padding(vertical = 4.dp)
                             ) {
-                                Text(
-                                    text = "${index + 1}",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isCurrent) themeColors.accent else themeColors.secondaryText,
-                                    modifier = Modifier.width(32.dp)
-                                )
-                                Text(
-                                    text = chapter.title,
-                                    fontSize = 15.sp,
-                                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                                    fontFamily = FontFamily.Serif,
-                                    color = if (isCurrent) themeColors.accent else themeColors.text,
-                                    modifier = Modifier.weight(1f)
-                                )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "${index + 1}",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isCurrent) themeColors.accent else themeColors.secondaryText,
+                                        modifier = Modifier.width(32.dp)
+                                    )
+                                    Text(
+                                        text = chapter.title,
+                                        fontSize = 15.sp,
+                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                        fontFamily = FontFamily.Serif,
+                                        color = if (isCurrent) themeColors.accent else themeColors.text,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    if (bookmarks.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "No bookmarks yet.\nTap the bookmark icon while reading to save one.",
+                                color = themeColors.secondaryText,
+                                fontSize = 14.sp,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    } else {
+                        LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                            items(bookmarks, key = { it.id }) { bookmark ->
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = themeColors.background),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(14.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clickable {
+                                                    coroutineScope.launch {
+                                                        if (settings.readingMode == ReadingMode.VERTICAL_SCROLL) {
+                                                            lazyListState.scrollToItem(
+                                                                bookmark.chapterIndex,
+                                                                bookmark.scrollOffset
+                                                            )
+                                                        } else {
+                                                            pagerState.scrollToPage(bookmark.chapterIndex)
+                                                        }
+                                                    }
+                                                    showTocSheet = false
+                                                }
+                                        ) {
+                                            Text(
+                                                text = bookmark.chapterTitle,
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                fontFamily = FontFamily.Serif,
+                                                color = themeColors.text
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = "Chapter ${bookmark.chapterIndex + 1}",
+                                                fontSize = 12.sp,
+                                                color = themeColors.secondaryText
+                                            )
+                                        }
+                                        IconButton(onClick = { viewModel.removeBookmark(bookmark.id) }) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Delete,
+                                                contentDescription = "Remove Bookmark",
+                                                tint = themeColors.secondaryText
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

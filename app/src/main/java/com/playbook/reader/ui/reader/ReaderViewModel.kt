@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.playbook.reader.data.repository.BookRepository
 import com.playbook.reader.domain.model.Book
+import com.playbook.reader.domain.model.Bookmark
 import com.playbook.reader.domain.model.Chapter
 import com.playbook.reader.domain.model.ReaderSettings
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,8 +32,16 @@ class ReaderViewModel(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    private val _bookmarks = MutableStateFlow<List<Bookmark>>(emptyList())
+    val bookmarks: StateFlow<List<Bookmark>> = _bookmarks.asStateFlow()
+
     init {
         loadBookData()
+        loadBookmarks()
+    }
+
+    private fun loadBookmarks() {
+        _bookmarks.value = repository.getBookmarksForBook(bookId)
     }
 
     private fun loadBookData() {
@@ -64,6 +73,25 @@ class ReaderViewModel(
 
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
+    }
+
+    fun toggleBookmark(chapterIndex: Int, chapterTitle: String, scrollOffset: Int = 0) {
+        val existing = _bookmarks.value.find { it.chapterIndex == chapterIndex && kotlin.math.abs(it.scrollOffset - scrollOffset) < 100 }
+        if (existing != null) {
+            _bookmarks.value = repository.removeBookmark(bookId, existing.id)
+        } else {
+            val newBookmark = Bookmark(
+                bookId = bookId,
+                chapterIndex = chapterIndex,
+                chapterTitle = chapterTitle,
+                scrollOffset = scrollOffset
+            )
+            _bookmarks.value = repository.addBookmark(newBookmark)
+        }
+    }
+
+    fun removeBookmark(bookmarkId: String) {
+        _bookmarks.value = repository.removeBookmark(bookId, bookmarkId)
     }
 
     class Factory(

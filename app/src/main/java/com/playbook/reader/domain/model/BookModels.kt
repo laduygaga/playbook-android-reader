@@ -34,6 +34,16 @@ data class Chapter(
     val href: String? = null
 )
 
+data class Bookmark(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val bookId: String,
+    val chapterIndex: Int,
+    val chapterTitle: String,
+    val scrollOffset: Int = 0,
+    val timestamp: Long = System.currentTimeMillis(),
+    val note: String? = null
+)
+
 enum class ReadingMode {
     VERTICAL_SCROLL,
     HORIZONTAL_PAGED

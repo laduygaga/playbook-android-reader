@@ -10,6 +10,7 @@ import com.playbook.reader.data.parser.TextParser
 import com.playbook.reader.data.sample.SampleBooksProvider
 import com.playbook.reader.domain.model.Book
 import com.playbook.reader.domain.model.BookFileType
+import com.playbook.reader.domain.model.Bookmark
 import com.playbook.reader.domain.model.Chapter
 import com.playbook.reader.domain.model.ReaderSettings
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -141,5 +142,38 @@ class BookRepository(private val context: Context) {
         } catch (e: Exception) {
             ReaderSettings()
         }
+    }
+
+    fun getBookmarksForBook(bookId: String): List<Bookmark> {
+        val json = prefs.getString("bookmarks_$bookId", null) ?: return emptyList()
+        return try {
+            val type = object : TypeToken<List<Bookmark>>() {}.type
+            gson.fromJson(json, type) ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun addBookmark(bookmark: Bookmark): List<Bookmark> {
+        val current = getBookmarksForBook(bookmark.bookId).toMutableList()
+        current.removeAll { it.chapterIndex == bookmark.chapterIndex && it.scrollOffset == bookmark.scrollOffset }
+        current.add(0, bookmark)
+        val json = gson.toJson(current)
+        prefs.edit().putString("bookmarks_${bookmark.bookId}", json).apply()
+        return current
+    }
+
+    fun removeBookmark(bookId: String, bookmarkId: String): List<Bookmark> {
+        val current = getBookmarksForBook(bookId).filterNot { it.id == bookmarkId }
+        val json = gson.toJson(current)
+        prefs.edit().putString("bookmarks_$bookId", json).apply()
+        return current
+    }
+
+    fun removeBookmarkForChapter(bookId: String, chapterIndex: Int): List<Bookmark> {
+        val current = getBookmarksForBook(bookId).filterNot { it.chapterIndex == chapterIndex }
+        val json = gson.toJson(current)
+        prefs.edit().putString("bookmarks_$bookId", json).apply()
+        return current
     }
 }
