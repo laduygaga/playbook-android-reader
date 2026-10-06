@@ -20,7 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -40,13 +40,18 @@ import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
@@ -78,6 +83,8 @@ import com.playbook.reader.domain.model.FontStyleOption
 import com.playbook.reader.domain.model.ReaderSettings
 import com.playbook.reader.domain.model.ReaderThemeColors
 import com.playbook.reader.domain.model.ReadingMode
+import com.playbook.reader.domain.model.SupportedLanguage
+import com.playbook.reader.domain.model.TranslationState
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
@@ -93,9 +100,15 @@ fun ReaderScreen(
     val settings by viewModel.settings.collectAsState()
     val bookmarks by viewModel.bookmarks.collectAsState()
 
+    val selectedLanguage by viewModel.selectedLanguage.collectAsState()
+    val isTranslationActive by viewModel.isTranslationActive.collectAsState()
+    val translationState by viewModel.translationState.collectAsState()
+    val translatedChapters by viewModel.translatedChapters.collectAsState()
+
     var showControls by remember { mutableStateOf(true) }
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showTocSheet by remember { mutableStateOf(false) }
+    var showTranslationSheet by remember { mutableStateOf(false) }
     var tocTabSelected by remember { mutableStateOf(0) }
 
     val coroutineScope = rememberCoroutineScope()
@@ -232,10 +245,16 @@ fun ReaderScreen(
                     items = chapters,
                     key = { _, chapter -> chapter.id }
                 ) { index, chapter ->
+                    val cacheKey = "${chapter.id}-${selectedLanguage.code}"
+                    val translatedText = translatedChapters[cacheKey]
                     AppleChapterView(
                         chapter = chapter,
                         settings = settings,
-                        themeColors = themeColors
+                        themeColors = themeColors,
+                        translatedContent = translatedText,
+                        isTranslationActive = isTranslationActive,
+                        selectedLanguage = selectedLanguage,
+                        onToggleOriginal = { viewModel.toggleTranslationActive() }
                     )
                     if (index < chapters.size - 1) {
                         Spacer(modifier = Modifier.height(32.dp))
@@ -272,10 +291,16 @@ fun ReaderScreen(
                         .padding(horizontal = settings.textMarginDp.dp, vertical = 72.dp)
                         .verticalScroll(pageScrollState)
                 ) {
+                    val cacheKey = "${chapter.id}-${selectedLanguage.code}"
+                    val translatedText = translatedChapters[cacheKey]
                     AppleChapterView(
                         chapter = chapter,
                         settings = settings,
-                        themeColors = themeColors
+                        themeColors = themeColors,
+                        translatedContent = translatedText,
+                        isTranslationActive = isTranslationActive,
+                        selectedLanguage = selectedLanguage,
+                        onToggleOriginal = { viewModel.toggleTranslationActive() }
                     )
                 }
             }
@@ -337,6 +362,14 @@ fun ReaderScreen(
                                 imageVector = if (isCurrentBookmarked) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
                                 contentDescription = "Bookmark",
                                 tint = if (isCurrentBookmarked) themeColors.accent else themeColors.text
+                            )
+                        }
+
+                        IconButton(onClick = { showTranslationSheet = true }) {
+                            Icon(
+                                imageVector = Icons.Filled.Translate,
+                                contentDescription = "Translate Current Page",
+                                tint = if (isTranslationActive) themeColors.accent else themeColors.text
                             )
                         }
 
@@ -759,25 +792,245 @@ fun ReaderScreen(
             }
         }
     }
+
+    if (showTranslationSheet) {
+        val currentChapter = chapters.getOrNull(currentIdx)
+        ModalBottomSheet(
+            onDismissRequest = { showTranslationSheet = false },
+            sheetState = rememberModalBottomSheetState(),
+            containerColor = themeColors.surface
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.Translate,
+                            contentDescription = null,
+                            tint = themeColors.accent,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Translate Current Page",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Serif,
+                            color = themeColors.text
+                        )
+                    }
+                    if (isTranslationActive) {
+                        Surface(
+                            color = themeColors.accent.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(
+                                text = "Active",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = themeColors.accent,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = currentChapter?.title ?: "Current Page",
+                    fontSize = 13.sp,
+                    color = themeColors.secondaryText
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+                Text(
+                    text = "Select Language",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = themeColors.secondaryText
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(SupportedLanguage.DEFAULT_LANGUAGES) { lang ->
+                        val isSelected = selectedLanguage.code == lang.code
+                        Surface(
+                            color = if (isSelected) themeColors.accent else themeColors.background,
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.clickable {
+                                viewModel.setSelectedLanguage(lang)
+                            }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(lang.flagEmoji, fontSize = 16.sp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = lang.name,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) Color.White else themeColors.text
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                when (val state = translationState) {
+                    is TranslationState.Loading -> {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = themeColors.accent,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = "Translating into ${selectedLanguage.name}...",
+                                fontSize = 14.sp,
+                                color = themeColors.text
+                            )
+                        }
+                    }
+                    is TranslationState.Error -> {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = "Translation error: ${state.message}",
+                                color = Color(0xFFE53935),
+                                fontSize = 13.sp,
+                                modifier = Modifier.padding(bottom = 12.dp)
+                            )
+                            Button(
+                                onClick = {
+                                    currentChapter?.let { viewModel.translateCurrentChapter(it, selectedLanguage) }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = themeColors.accent),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Retry Translation", color = Color.White)
+                            }
+                        }
+                    }
+                    else -> {
+                        val currentCacheKey = "${currentChapter?.id}-${selectedLanguage.code}"
+                        val hasTranslation = translatedChapters.containsKey(currentCacheKey)
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            if (hasTranslation || isTranslationActive) {
+                                OutlinedButton(
+                                    onClick = {
+                                        viewModel.toggleTranslationActive()
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        if (isTranslationActive) "Show Original" else "Show Translation",
+                                        color = themeColors.text
+                                    )
+                                }
+                            }
+
+                            Button(
+                                onClick = {
+                                    currentChapter?.let {
+                                        viewModel.translateCurrentChapter(it, selectedLanguage)
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = themeColors.accent),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    if (hasTranslation) "Re-Translate" else "Translate Page",
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+    }
 }
 
 @Composable
 fun AppleChapterView(
     chapter: Chapter,
     settings: ReaderSettings,
-    themeColors: ReaderThemeColors
+    themeColors: ReaderThemeColors,
+    translatedContent: String? = null,
+    isTranslationActive: Boolean = false,
+    selectedLanguage: SupportedLanguage? = null,
+    onToggleOriginal: (() -> Unit)? = null
 ) {
+    val isTranslated = isTranslationActive && !translatedContent.isNullOrBlank()
+    val rawText = if (isTranslated) translatedContent!! else chapter.content
+
     val fontFamily = when (settings.fontStyle) {
         FontStyleOption.SERIF -> FontFamily.Serif
         FontStyleOption.SANS_SERIF -> FontFamily.SansSerif
         FontStyleOption.MONOSPACE -> FontFamily.Monospace
     }
 
-    val paragraphs = remember(chapter.content) {
-        chapter.content.split("\n\n").map { it.trim() }.filter { it.isNotEmpty() }
+    val paragraphs = remember(rawText) {
+        rawText.split("\n\n").map { it.trim() }.filter { it.isNotEmpty() }
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
+        if (isTranslated && selectedLanguage != null) {
+            Surface(
+                color = themeColors.accent.copy(alpha = 0.12f),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+                    .clickable { onToggleOriginal?.invoke() }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "${selectedLanguage.flagEmoji} Translated to ${selectedLanguage.name}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = themeColors.accent
+                    )
+                    Text(
+                        text = "Show Original",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = themeColors.accent
+                    )
+                }
+            }
+        }
+
         Text(
             text = chapter.title,
             fontSize = (settings.fontSizeSp + 6).sp,
@@ -789,7 +1042,7 @@ fun AppleChapterView(
 
         if (paragraphs.isEmpty()) {
             Text(
-                text = chapter.content,
+                text = rawText,
                 fontSize = settings.fontSizeSp.sp,
                 lineHeight = (settings.fontSizeSp * settings.lineSpacingMultiplier).sp,
                 fontFamily = fontFamily,

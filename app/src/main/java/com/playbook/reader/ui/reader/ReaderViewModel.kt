@@ -4,10 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.playbook.reader.data.repository.BookRepository
+import com.playbook.reader.data.translation.TranslationService
 import com.playbook.reader.domain.model.Book
 import com.playbook.reader.domain.model.Bookmark
 import com.playbook.reader.domain.model.Chapter
 import com.playbook.reader.domain.model.ReaderSettings
+import com.playbook.reader.domain.model.SupportedLanguage
+import com.playbook.reader.domain.model.TranslationState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,7 +18,8 @@ import kotlinx.coroutines.launch
 
 class ReaderViewModel(
     private val repository: BookRepository,
-    val bookId: String
+    val bookId: String,
+    private val translationService: TranslationService = TranslationService()
 ) : ViewModel() {
 
     private val _book = MutableStateFlow<Book?>(null)
@@ -34,6 +38,18 @@ class ReaderViewModel(
 
     private val _bookmarks = MutableStateFlow<List<Bookmark>>(emptyList())
     val bookmarks: StateFlow<List<Bookmark>> = _bookmarks.asStateFlow()
+
+    private val _selectedLanguage = MutableStateFlow(SupportedLanguage.DEFAULT_LANGUAGES.first())
+    val selectedLanguage: StateFlow<SupportedLanguage> = _selectedLanguage.asStateFlow()
+
+    private val _isTranslationActive = MutableStateFlow(false)
+    val isTranslationActive: StateFlow<Boolean> = _isTranslationActive.asStateFlow()
+
+    private val _translationState = MutableStateFlow<TranslationState>(TranslationState.Idle)
+    val translationState: StateFlow<TranslationState> = _translationState.asStateFlow()
+
+    private val _translatedChapters = MutableStateFlow<Map<String, String>>(emptyMap())
+    val translatedChapters: StateFlow<Map<String, String>> = _translatedChapters.asStateFlow()
 
     init {
         loadBookData()
@@ -92,6 +108,69 @@ class ReaderViewModel(
 
     fun removeBookmark(bookmarkId: String) {
         _bookmarks.value = repository.removeBookmark(bookId, bookmarkId)
+    }
+
+    fun setSelectedLanguage(language: SupportedLanguage) {
+        _selectedLanguage.value = language
+    }
+
+    fun translateCurrentChapter(chapter: Chapter, language: SupportedLanguage = selectedLanguage.value) {
+        _selectedLanguage.value = language
+        val cacheKey = "${chapter.id}-${language.code}"
+
+        val cachedTranslation = _translatedChapters.value[cacheKey]
+        if (cachedTranslation != null) {
+            _translationState.value = TranslationState.Success(
+                chapterId = chapter.id,
+                translatedText = cachedTranslation,
+                targetLanguage = language
+            )
+            _isTranslationActive.value = true
+            return
+        }
+
+        viewModelScope.launch {
+            _translationState.value = TranslationState.Loading
+            val result = translationService.translateText(
+                chapterId = chapter.id,
+                text = chapter.content,
+                targetLanguage = language
+            )
+
+            result.fold(
+                onSuccess = { translatedText ->
+                    val updatedMap = _translatedChapters.value.toMutableMap()
+                    updatedMap[cacheKey] = translatedText
+                    _translatedChapters.value = updatedMap
+
+                    _translationState.value = TranslationState.Success(
+                        chapterId = chapter.id,
+                        translatedText = translatedText,
+                        targetLanguage = language
+                    )
+                    _isTranslationActive.value = true
+                },
+                onFailure = { error ->
+                    _translationState.value = TranslationState.Error(
+                        error.message ?: "Failed to translate page"
+                    )
+                }
+            )
+        }
+    }
+
+    fun toggleTranslationActive() {
+        _isTranslationActive.value = !_isTranslationActive.value
+    }
+
+    fun showOriginalText() {
+        _isTranslationActive.value = false
+    }
+
+    fun showTranslatedText() {
+        if (_translationState.value is TranslationState.Success) {
+            _isTranslationActive.value = true
+        }
     }
 
     class Factory(
