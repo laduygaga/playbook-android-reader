@@ -42,8 +42,11 @@ class BookRepository(private val context: Context) {
             emptyList()
         }
 
+        val removedSampleIds = prefs.getStringSet("removed_sample_ids", emptySet()) ?: emptySet()
+        val sampleBooks = SampleBooksProvider.SAMPLE_BOOKS.filterNot { it.id in removedSampleIds }
+
         // Merge sample books if not already saved
-        val allBooks = (SampleBooksProvider.SAMPLE_BOOKS + savedBooks).distinctBy { it.id }
+        val allBooks = (sampleBooks + savedBooks).distinctBy { it.id }
         _books.value = allBooks
         saveBooksToPrefs(savedBooks)
     }
@@ -51,6 +54,27 @@ class BookRepository(private val context: Context) {
     private fun saveBooksToPrefs(userBooks: List<Book>) {
         val json = gson.toJson(userBooks)
         prefs.edit().putString("user_books", json).commit()
+    }
+
+    fun removeBook(bookId: String) {
+        if (bookId.startsWith("sample_")) {
+            val removedSampleIds = prefs.getStringSet("removed_sample_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+            removedSampleIds.add(bookId)
+            prefs.edit().putStringSet("removed_sample_ids", removedSampleIds).commit()
+        } else {
+            val chapterFile = File(context.filesDir, "chapters_$bookId.json")
+            if (chapterFile.exists()) {
+                chapterFile.delete()
+            }
+        }
+
+        prefs.edit().remove("bookmarks_$bookId").commit()
+
+        val currentList = _books.value.filterNot { it.id == bookId }
+        _books.value = currentList
+
+        val userOnly = currentList.filterNot { it.id.startsWith("sample_") }
+        saveBooksToPrefs(userOnly)
     }
 
     fun importBook(uri: Uri, fileName: String): Book? {

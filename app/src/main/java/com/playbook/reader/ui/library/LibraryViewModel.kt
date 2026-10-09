@@ -31,6 +31,10 @@ class LibraryViewModel(private val repository: BookRepository) : ViewModel() {
         return repository.importBook(uri, fileName)
     }
 
+    fun removeBook(bookId: String) {
+        repository.removeBook(bookId)
+    }
+
     class Factory(private val repository: BookRepository) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {

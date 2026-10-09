@@ -33,12 +33,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -50,6 +55,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -92,6 +98,7 @@ fun LibraryScreen(
 
     var showSearchField by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableStateOf(0) } // 0: Reading Now, 1: Library
+    var bookToDelete by remember { mutableStateOf<Book?>(null) }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -109,6 +116,42 @@ fun LibraryScreen(
     }
 
     val recentBook = filteredBooks.maxByOrNull { it.lastReadTimestamp }
+
+    bookToDelete?.let { book ->
+        AlertDialog(
+            onDismissRequest = { bookToDelete = null },
+            title = {
+                Text(
+                    text = "Remove Book",
+                    fontWeight = FontWeight.Bold,
+                    color = AppleTextPrimary
+                )
+            },
+            text = {
+                Text(
+                    text = "Are you sure you want to remove \"${book.title}\" from your library?",
+                    color = AppleTextPrimary
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.removeBook(book.id)
+                        bookToDelete = null
+                    }
+                ) {
+                    Text("Remove", color = AppleRed, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { bookToDelete = null }) {
+                    Text("Cancel", color = AppleTextSecondary)
+                }
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
 
     Scaffold(
         containerColor = AppleBg,
@@ -290,7 +333,8 @@ fun LibraryScreen(
                                     Spacer(modifier = Modifier.height(8.dp))
                                     AppleReadingNowHeroCard(
                                         book = book,
-                                        onClick = { onBookClick(book.id) }
+                                        onClick = { onBookClick(book.id) },
+                                        onDeleteClick = { bookToDelete = book }
                                     )
                                     Spacer(modifier = Modifier.height(24.dp))
                                     Text(
@@ -307,7 +351,11 @@ fun LibraryScreen(
 
                         items(filteredBooks, key = { it.id }) { book ->
                             Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-                                AppleBookListRow(book = book, onClick = { onBookClick(book.id) })
+                                AppleBookListRow(
+                                    book = book,
+                                    onClick = { onBookClick(book.id) },
+                                    onDeleteClick = { bookToDelete = book }
+                                )
                             }
                         }
                     } else {
@@ -342,14 +390,22 @@ fun LibraryScreen(
                                         .height((((filteredBooks.size + 1) / 2) * 280).dp)
                                 ) {
                                     items(filteredBooks, key = { it.id }) { book ->
-                                        AppleBookGridCard(book = book, onClick = { onBookClick(book.id) })
+                                        AppleBookGridCard(
+                                            book = book,
+                                            onClick = { onBookClick(book.id) },
+                                            onDeleteClick = { bookToDelete = book }
+                                        )
                                     }
                                 }
                             }
                         } else {
                             items(filteredBooks, key = { it.id }) { book ->
                                 Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-                                    AppleBookListRow(book = book, onClick = { onBookClick(book.id) })
+                                    AppleBookListRow(
+                                        book = book,
+                                        onClick = { onBookClick(book.id) },
+                                        onDeleteClick = { bookToDelete = book }
+                                    )
                                 }
                             }
                         }
@@ -363,7 +419,8 @@ fun LibraryScreen(
 @Composable
 fun AppleReadingNowHeroCard(
     book: Book,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDeleteClick: () -> Unit
 ) {
     Card(
         shape = RoundedCornerShape(20.dp),
@@ -425,18 +482,43 @@ fun AppleReadingNowHeroCard(
                 }
             }
             Spacer(modifier = Modifier.width(12.dp))
-            IconButton(
-                onClick = onClick,
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(AppleRed)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = "Resume",
-                    tint = Color.White
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = onClick,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(AppleRed)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "Resume",
+                        tint = Color.White
+                    )
+                }
+                var showMenu by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "More options",
+                            tint = AppleTextSecondary
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Remove Book", color = AppleRed) },
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = AppleRed) },
+                            onClick = {
+                                showMenu = false
+                                onDeleteClick()
+                            }
+                        )
+                    }
+                }
             }
         }
     }
@@ -445,20 +527,56 @@ fun AppleReadingNowHeroCard(
 @Composable
 fun AppleBookGridCard(
     book: Book,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDeleteClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
     ) {
-        AppleBookCoverThumbnail(
-            title = book.title,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(210.dp)
-                .shadow(6.dp, RoundedCornerShape(12.dp))
-        )
+        Box(modifier = Modifier.fillMaxWidth()) {
+            AppleBookCoverThumbnail(
+                title = book.title,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(210.dp)
+                    .shadow(6.dp, RoundedCornerShape(12.dp))
+            )
+            var showMenu by remember { mutableStateOf(false) }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+            ) {
+                IconButton(
+                    onClick = { showMenu = true },
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(Color.Black.copy(alpha = 0.4f), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "More options",
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Remove Book", color = AppleRed) },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = AppleRed) },
+                        onClick = {
+                            showMenu = false
+                            onDeleteClick()
+                        }
+                    )
+                }
+            }
+        }
         Spacer(modifier = Modifier.height(10.dp))
         Text(
             text = book.title,
@@ -496,7 +614,8 @@ fun AppleBookGridCard(
 @Composable
 fun AppleBookListRow(
     book: Book,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDeleteClick: () -> Unit
 ) {
     Card(
         shape = RoundedCornerShape(14.dp),
@@ -559,6 +678,29 @@ fun AppleBookListRow(
                             color = AppleTextSecondary
                         )
                     }
+                }
+            }
+            var showMenu by remember { mutableStateOf(false) }
+            Box {
+                IconButton(onClick = { showMenu = true }) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "More options",
+                        tint = AppleTextSecondary
+                    )
+                }
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Remove Book", color = AppleRed) },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = AppleRed) },
+                        onClick = {
+                            showMenu = false
+                            onDeleteClick()
+                        }
+                    )
                 }
             }
         }
